@@ -23,19 +23,17 @@ int adc_key_in  = 0;
 #define btnNONE   5
 
 // Values respresenting the different views.
-// 0 - Current and last bottle
+// 0 - Bottle history
 // 1 - Menu
 // 2 - Enter a new bottle
 // 3 - Total consumption within the last 24 hours
-// 4 - Bottle history within the last 24 hours
-// 5 - Set time
+// 4 - Set time
 int current_view = 0;
-#define VIEW_CURRENT_BOTTLE     0
+#define VIEW_HISTORY            0
 #define VIEW_MENU               1
 #define VIEW_NEW_BOTTLE         2
 #define VIEW_TOTAL_CONSUMPTION  3
-#define VIEW_HISTORY            4
-#define VIEW_SET_TIME           5
+#define VIEW_SET_TIME           4
 
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
 #define DELAY_TIME 100
@@ -43,15 +41,38 @@ int current_view = 0;
 #define DEFAULT_VOLUME 140
 #define DEFAULT_SPOONS 3.5
 
-#define MAX_BOTTLES 2560
+#define MAX_BOTTLES 256
 
 struct Bottle {
   byte spoons;
   byte volume;
+  byte remaining;
   byte time;
 };
 
 Bottle bottles[MAX_BOTTLES];
+// Specifies which bottle in bottles is the most recent one.
+unsigned current_bottle = 0;
+unsigned displayed_bottle = 0;
+
+/* Adds a new bottle to the global bottles array and increments
+   current_bottle. This array will be filled in a cyclic fashion while
+   overwriting the oldest entry.
+
+Upon adding a bottle is considered full.*/
+void addBottle(byte spoons, byte volume, byte time)
+{
+  Serial.println("current_bottle");
+  Serial.println(current_bottle);
+
+  Bottle new_bottle = {spoons, volume, volume, time};
+
+  bottles[current_bottle] = new_bottle;
+
+  if (current_bottle >= MAX_BOTTLES) {
+    current_bottle = 0;
+  }
+}
 
 // read the buttons
 int readLCDButtons()
@@ -81,8 +102,7 @@ int readLCDButtons()
 // Additional constant for browsing the different menu options.
 // 2 - new bottle
 // 3 - total consumption
-// 4 - history
-// 5 - set time
+// 4 - set time
 int menu_item=2;
 int old_menu_item=-1;
 
@@ -114,6 +134,8 @@ void restoreDefaults()
   old_bottle_volume = -1;
   bottle_time = 12;
   old_bottle_time = -1;
+
+  displayed_bottle = current_bottle;
 }
 
 void setup()
@@ -124,9 +146,149 @@ void setup()
   Serial.begin(9600);
 }
 
-/* Shows the current (top) and the last (bottom) bottle. */
-void currentBottleView()
+/* General view displaying a single bottle (determined by `index`
+   within the array `bottles`. */
+void bottleView(int index)
 {
+  bool update_display=false;
+  if (bottle_option != old_bottle_option)
+  {
+    old_bottle_option = bottle_option;
+    update_display = true;
+  }
+
+  // Actually specifies 'remaining' and not volume.
+  if (bottle_option == 1 && bottle_volume != old_bottle_volume)
+  {
+    old_bottle_volume = bottle_volume;
+    update_display = true;
+  }
+
+  if (update_display)
+  {
+    lcd.clear();
+    lcd.setCursor(0,0);
+    switch (bottle_option)
+    {
+
+    case 0:
+      // Default view showing the details of the particular bottle.
+      
+      {
+        lcd.setCursor(0,0);
+        lcd.print(bottles[index].spoons);
+
+	if (bottles[index].remaining < 100) {
+	  lcd.setCursor(0, 5);
+	} else {
+	  lcd.setCursor(0, 4);
+	}
+	lcd.print(bottles[index].remaining);
+	
+	lcd.setCursor(0,6);
+	lcd.print("/");
+
+	if (bottles[index].volume < 100) {
+	  lcd.setCursor(0, 8);
+	} else {
+	  lcd.setCursor(0, 7);
+	}
+	lcd.print(bottles[index].volume);
+
+	lcd.setCursor(1,0);
+	lcd.print(bottles[index].time);
+	
+        break;
+      }
+    case 1:
+      // Specify what's left of the bottle.
+      {
+        lcd.print("Remaining:");
+        if (bottle_volume >= 100)
+        {
+          lcd.setCursor(0,1);
+        }
+        else
+        {
+          lcd.setCursor(1,1);
+        }
+        lcd.print(bottle_volume);
+        lcd.setCursor(3,1);
+        lcd.print("ml");
+        break;
+      }
+    }
+  }
+
+  lcd_key = readLCDButtons();
+
+  switch (lcd_key)
+  {
+  case btnRIGHT:
+    {
+      if (bottle_option < 1)
+      {
+        bottle_option++;
+        break;
+      }
+      else 
+      {
+	bottles[index].remaining = bottle_volume;
+        break;
+      }
+    }
+    case btnLEFT:
+      {
+        if (bottle_option == 0)
+        {
+          // Abort and return to current bottle view.
+          startView(0);
+          break;
+        }
+        else
+        {
+          bottle_option--;
+          break;
+        }
+      }
+    case btnUP:
+      {
+	if (bottle_option == 0) {
+	  if (displayed_bottle != MAX_BOTTLES - 1){
+	    displayed_bottle++;
+	  } else {
+	    displayed_bottle = 0;
+	  }
+	} else if (bottle_option == 1) {
+            // There is a maximum value of a bottle of 150 ml.
+            if (bottle_volume < 150)
+            {
+              bottle_volume = bottle_volume + 10;
+            }
+            break;
+	}
+	break;
+      }
+  case btnDOWN:
+    {
+      if (bottle_option == 0) {
+	if (displayed_bottle != 0){
+	  displayed_bottle--;
+	} else {
+	  displayed_bottle = MAX_BOTTLES - 1;
+	}
+      } else if (bottle_option == 1) {
+          // There is a maximum value of a bottle of 150 ml.
+          if (bottle_volume > 0)
+          {
+            bottle_volume = bottle_volume - 10;
+          }
+          break;
+        }
+    }
+    break;
+  }
+
 }
 
 /* Main navigation utility allowing the user to reach all the different views and options. */
@@ -155,13 +317,6 @@ void menuView()
         lcd.print("History");
         break;
       }
-    case VIEW_HISTORY:
-      {
-        lcd.print("> History");
-        lcd.setCursor(2,1);
-        lcd.print("Set time");
-        break;
-      }
     case VIEW_SET_TIME:
       {
         lcd.print("> Set time");
@@ -188,7 +343,8 @@ void menuView()
   case btnLEFT:
     { 
       // Abort and return to current bottle view.
-      current_view = VIEW_CURRENT_BOTTLE;
+      current_view = VIEW_HISTORY;
+      displayed_bottle = current_bottle;
       startView(0);
       break;
     }
@@ -218,7 +374,6 @@ void menuView()
 /* Allows the user to add a new bottle.*/
 void newBottleView()
 {
-
   bool update_display=false;
   if (bottle_option != old_bottle_option)
   {
@@ -292,14 +447,15 @@ void newBottleView()
       {
         bottle_option++;
         break;
-      }
-      else 
-      {
-        Serial.println("New bottle ready:");
-        Serial.println(bottle_spoons);
-        Serial.println(bottle_volume);
-        Serial.println(bottle_time);
+      } else if (bottle_option == 2) {
+	addBottle(
+	  bottle_spoons,
+	  bottle_volume,
+	  bottle_time);
         break;
+      } else {
+	displayed_bottle = current_bottle;
+	current_view = VIEW_HISTORY;
       }
     case btnLEFT:
       {
@@ -383,6 +539,7 @@ void consumptionView()
 /* Displays all bottles stored in memory with latest first. Uses the currentBottleView() for a particular pair of bottles.*/
 void historyView()
 {
+  bottleView(displayed_bottle);
 }
 
 /* Allows the user to insert a reference time.*/
@@ -395,9 +552,9 @@ void startView(byte selection)
 {
   switch (selection)
   {
-  case VIEW_CURRENT_BOTTLE:
+  case VIEW_HISTORY:
     {
-      currentBottleView();
+      historyView();
       break;
     }
   case VIEW_MENU:
@@ -415,18 +572,13 @@ void startView(byte selection)
       consumptionView();
       break;
     }
-  case VIEW_HISTORY:
-    {
-      historyView();
-      break;
-    }
   case VIEW_SET_TIME:
     {
       setTimeView();
     }
   default:
     {
-      currentBottleView();
+      historyView();
       break;
     }
   }
