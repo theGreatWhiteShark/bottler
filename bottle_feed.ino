@@ -238,7 +238,8 @@ void bottleView(int index)
         {
           lcd.setCursor(1,1);
         }
-        lcd.print(bottle_volume);
+	
+        lcd.print(min(bottle_volume,bottles[index].volume));
         lcd.setCursor(3,1);
         lcd.print("ml");
         break;
@@ -287,8 +288,7 @@ void bottleView(int index)
 	    displayed_bottle = 0;
 	  }
 	} else if (bottle_option == 1) {
-            // There is a maximum value of a bottle of 150 ml.
-            if (bottle_volume < 150)
+            if (bottle_volume < bottles[index].volume)
             {
               bottle_volume = bottle_volume + 10;
             }
