@@ -89,20 +89,21 @@ public:
 	int totalVolume(int from, int till);
 	int totalSpoons(int from, int till);
 
-	byte get_current_bottle() static;
-	Bottle get_bottle(int index) static;
+	byte getCurrentBottleIdx() static;
+	Bottle* getBottle(int idx);
+	void setBottle(int idx, Bottle b);
 	
 private:
 	Bottle m_bottles[MAX_BOTTLES];
 
-	byte m_current_bottle;
+	byte m_current_bottle_idx;
 };
 
-inline byte Crate::get_current_bottle() static {
-	return m_current_bottle;
+inline byte Crate::getCurrentBottleIdx() static {
+	return m_current_bottle_idx;
 }
-inline Bottle Crate::get_bottle(int index) static {
-	return m_bottles[index];
+inline Bottle* Crate::getBottle(int idx) {
+	return m_bottles[idx];
 }
 
 Crate::Crate() : m_current_bottle( 0 )
@@ -191,177 +192,155 @@ void Interface::restoreDefaults()
 	bottle_time = 12;
 	m_old_bottle_time = -1;
 
-	m_displayed_bottle = current_bottle;
+	m_displayed_bottle = m_crate.getCurrentBottleIdx;
 	m_old_m_displayed_bottle = -1;
 }
 
 
 /* General view displaying a single bottle (determined by `index`
    within the array `bottles`. */
-void bottleView(int index)
+void Interface::bottleView(int index)
 {
-	bool update_display=false;
-	if (bottle_option != m_old_bottle_option)
-		{
-			m_old_bottle_option = m_bottle_option;
-			update_display = true;
-		}
+	bool update_display = false;
+	if ( m_bottle_option != m_old_bottle_option ) {
+		m_old_bottle_option = m_bottle_option;
+		update_display = true;
+	}
 
-	if (m_old_m_displayed_bottle != m_displayed_bottle) {
+	if ( m_old_m_displayed_bottle != m_displayed_bottle ) {
 		m_old_m_displayed_bottle = m_displayed_bottle;
 		update_display = true;
 	}
 
 	// Actually specifies 'remaining' and not volume.
-	if (bottle_option == 1 && m_bottle_volume != m_old_bottle_volume)
-		{
-			m_old_bottle_volume = m_bottle_volume;
-			update_display = true;
-		}
+	if ( m_bottle_option == 1 &&
+		 m_bottle_volume != m_old_bottle_volume ) {
+		m_old_bottle_volume = m_bottle_volume;
+		update_display = true;
+	}
 
-	if (update_display)
-		{
-			lcd.clear();
-			lcd.setCursor(0,0);
-			Serial.print("index: ");
-			Serial.print(index);
-			Serial.print(" bottle: ");
-			Serial.print(bottles[index].spoons);
-			Serial.print(", ");
-			Serial.print(bottles[index].volume);
-			Serial.print(", ");
-			Serial.print(bottles[index].remaining);
-			Serial.print(", ");
-			Serial.println(bottles[index].time);
-			switch (bottle_option)
-				{
+	if ( update_display ) {
+		lcd.clear();
+		lcd.setCursor(0,0);
 
-				case 0:
-					// Default view showing the details of the particular bottle.
+		// There is no concurrency. The bottle pointed to be the
+		// return value of the function is guaranteed to persist till
+		// the end of this function's scope.
+		Bottle* p_current_bottle = m_crate.getBottle( index );
+
+		switch ( m_bottle_option ) {
+
+		case 0: {
+			// Default view showing the details of the particular
+			// bottle.
       
-					{
-						lcd.setCursor(0,0);
-						lcd.print(bottles[index].spoons);
+			lcd.setCursor( 0, 0 );
+			lcd.print( p_current_bottle.spoons );
 
-						if (bottles[index].remaining < 100) {
-							lcd.setCursor(8, 0);
-						} else {
-							lcd.setCursor(7, 0);
-						}
-						lcd.print(bottles[index].remaining);
+			if ( p_current_bottle.remaining < 100 ) {
+				lcd.setCursor( 8, 0 );
+			} else {
+				lcd.setCursor( 7, 0 );
+			}
+			lcd.print(p_current_bottle.remaining);
 	
-						lcd.setCursor(10, 0);
-						lcd.print("/");
+			lcd.setCursor(10, 0);
+			lcd.print("/");
 
-						if (bottles[index].volume < 100) {
-							lcd.setCursor(12, 0);
-						} else {
-							lcd.setCursor(11, 0);
-						}
-						lcd.print(bottles[index].volume);
-						lcd.setCursor(14, 0);
-						lcd.print("ml");
+			if (p_current_bottle.volume < 100) {
+				lcd.setCursor(12, 0);
+			} else {
+				lcd.setCursor(11, 0);
+			}
+			lcd.print(p_current_bottle.volume);
+			lcd.setCursor(14, 0);
+			lcd.print("ml");
 	  
 
-						lcd.setCursor(3, 1);
-						lcd.print(bottles[index].time);
-						lcd.setCursor(5,1);
-						lcd.print(":");
-						lcd.setCursor(6,1);
-						lcd.print(bottles[index].time);
+			lcd.setCursor(3, 1);
+			lcd.print(p_current_bottle.time);
+			lcd.setCursor(5,1);
+			lcd.print(":");
+			lcd.setCursor(6,1);
+			lcd.print(p_current_bottle.time);
 	  
 	
-						break;
-					}
-				case 1:
-					// Specify what's left of the bottle.
-					{
-						lcd.print("Remaining:");
-						if (bottle_volume >= 100)
-							{
-								lcd.setCursor(0,1);
-							}
-						else
-							{
-								lcd.setCursor(1,1);
-							}
-	
-						lcd.print(min(bottle_volume,bottles[index].volume));
-						lcd.setCursor(3,1);
-						lcd.print("ml");
-						break;
-					}
-				}
+			break;
 		}
+		case 1: {
+			// Specify what's left of the bottle.
+			lcd.print("Remaining:");
+			if ( m_bottle_volume >= 100 ) {
+				lcd.setCursor(0,1);
+			}
+			else {
+				lcd.setCursor(1,1);
+			}
+	
+			lcd.print(min(m_bottle_volume,
+						  p_current_bottle.volume));
+			lcd.setCursor(3,1);
+			lcd.print("ml");
+			break;
+		}
+		}
+	}
 
 	m_lcd_key = readLCDButtons();
 
-	switch (m_lcd_key)
-		{
-		case btnRIGHT:
-			{
-				if (bottle_option < 1)
-					{
-						bottle_option++;
-						break;
-					}
-				else 
-					{
-						bottles[index].remaining = m_bottle_volume;
-						bottle_option = 0;
-						break;
-					}
+	switch ( m_lcd_key ) {
+	case btnRIGHT: {
+		if ( m_bottle_option < 1 ) {
+			m_bottle_option++;
+			break;
+		} else {
+			p_current_bottle.remaining = m_bottle_volume;
+			m_bottle_option = 0;
+			break;
+		}
+	}
+	case btnLEFT: {
+		if ( m_bottle_option == 0 ) {
+			// Abort and return to current bottle view.
+			view();
+			break;
+		} else {
+			m_bottle_option--;
+			break;
+		}
+	}
+	case btnUP: {
+		if ( m_bottle_option == 0 ) {
+			if ( m_displayed_bottle != MAX_BOTTLES - 1 ){
+				m_displayed_bottle++;
+			} else {
+				m_displayed_bottle = 0;
 			}
-		case btnLEFT:
-			{
-				if (bottle_option == 0)
-					{
-						// Abort and return to current bottle view.
-						startView(0);
-						break;
-					}
-				else
-					{
-						bottle_option--;
-						break;
-					}
-			}
-		case btnUP:
-			{
-				if (bottle_option == 0) {
-					if (m_displayed_bottle != MAX_BOTTLES - 1){
-						m_displayed_bottle++;
-					} else {
-						m_displayed_bottle = 0;
-					}
-				} else if (bottle_option == 1) {
-					if (bottle_volume < bottles[index].volume)
-						{
-							bottle_volume = m_bottle_volume + 10;
-						}
-					break;
-				}
-				break;
-			}
-		case btnDOWN:
-			{
-				if (bottle_option == 0) {
-					if (m_displayed_bottle != 0){
-						m_displayed_bottle--;
-					} else {
-						m_displayed_bottle = MAX_BOTTLES - 1;
-					}
-				} else if (bottle_option == 1) {
-					// There is a maximum value of a bottle of 150 ml.
-					if (bottle_volume > 0)
-						{
-							bottle_volume = m_bottle_volume - 10;
-						}
-					break;
-				}
+		} else if ( m_bottle_option == 1 ) {
+			if ( m_bottle_volume < p_current_bottle.volume ) {
+				m_bottle_volume = m_bottle_volume + 10;
 			}
 			break;
 		}
+		break;
+	}
+	case btnDOWN: {
+		if ( m_bottle_option == 0 ) {
+			if ( m_displayed_bottle != 0 ){
+				m_displayed_bottle--;
+			} else {
+				m_displayed_bottle = MAX_BOTTLES - 1;
+			}
+		} else if ( m_bottle_option == 1 ) {
+			// There is a maximum value of a bottle of 150 ml.
+			if ( m_bottle_volume > 0 ) {
+				m_bottle_volume = m_bottle_volume - 10;
+			}
+			break;
+		}
+	}
+		break;
+	}
 
 }
 
