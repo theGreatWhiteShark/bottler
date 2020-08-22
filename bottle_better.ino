@@ -1,35 +1,98 @@
 //Sample using LiquidCrystal library
 #include <LiquidCrystal.h>
 
+// Specify the pins used by the LCD
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
 #define DELAY_TIME 100
 #define DEFAULT_VOLUME 140
 #define DEFAULT_SPOONS 3.5
 #define MAX_BOTTLES 256
 
-enum Button { right, up, down, left, select, none };
-enum Views { history, menu, newBottle, consumption, time, none };
-enum BottleItem { spoons, volume, remaining, time, none };
+enum Button { buttonRight, buttonUp, buttonDown, buttonLeft,
+	buttonSelect, buttonNone };
+enum Views { viewHistory, viewMenu, viewNewBottle, viewConsumption, viewTime, viewNone };
+enum BottleItem { bottleSpoons, bottleVolume, bottleRemaining, bottleTime, bottleNone };
+
+struct Bottle {
+	float spoons;
+	int volume;
+	int remaining;
+	int time;
+};
+
+class Crate {
+public:
+	Crate();
+	~Crate();
+	/* Adds a new bottle to the global bottles array and increments
+	   current_bottle. This array will be filled in a cyclic fashion while
+	   overwriting the oldest entry.
+
+	   Upon adding a bottle is considered full.*/
+	void addBottle(float spoons, int volume, int time);
+
+	int totalVolume(int from, int till) const;
+	int totalSpoons(int from, int till) const;
+
+	int getCurrentBottleIdx() const;
+	Bottle getBottle(int idx) const;
+	void setBottle(int idx, Bottle b);
+	
+private:
+	Bottle m_bottles[MAX_BOTTLES];
+
+	byte m_current_bottle_idx;
+};
+
+inline int Crate::getCurrentBottleIdx() const {
+	return m_current_bottle_idx;
+}
+inline Bottle Crate::getBottle(int idx) const {
+	return m_bottles[idx];
+}
+inline void Crate::setBottle(int idx, Bottle b) {
+	m_bottles[idx] = b;
+}
+
+Crate::Crate() : m_current_bottle_idx( 0 )
+			   , m_bottles {} {
+}
+Crate::~Crate(){
+}
+
+
+void Crate::addBottle(float spoons, int volume, int time)
+{
+	Bottle new_bottle = {spoons, volume, volume, time};
+
+	m_current_bottle_idx++;
+	if ( m_current_bottle_idx >= MAX_BOTTLES ) {
+		m_current_bottle_idx = 0;
+	}
+
+	m_bottles[m_current_bottle_idx] = new_bottle;
+}
 
 class Interface {
 
 public:
+	Interface();
+	~Interface();
 
 	void view();
 
 private:
 
-	Interface();
-	~Interface();
-
-	void bottleView();
+	void bottleView(int index);
 	void historyView();
 	void menuView();
 	void newBottleView();
 	void consumptionView();
 	void setTimeView();
 
-	int readButtons() static;
+	int readButtons() const;
 	// Resets the global variables to their initial state (done before entering the view).
 	void restoreDefaults();
 
@@ -38,7 +101,7 @@ private:
 	int m_current_view;
 	
 	// Specifies which bottle in bottles is the most recent one.
-	unsigned m_displayed_bottle;
+	int m_displayed_bottle;
 	
 	// Global constants used within the functions.
 
@@ -67,68 +130,11 @@ private:
 };
 
 
-struct Bottle {
-	float spoons;
-	int volume;
-	int remaining;
-	int time;
-};
-
-class Crate {
-public:
-	Crate();
-	~Crate();
-	/* Adds a new bottle to the global bottles array and increments
-	   current_bottle. This array will be filled in a cyclic fashion while
-	   overwriting the oldest entry.
-
-	   Upon adding a bottle is considered full.*/
-	void addBottle(float spoons, int volume, int time);
-
-	int totalVolume(int from, int till);
-	int totalSpoons(int from, int till);
-
-	byte getCurrentBottleIdx() static;
-	Bottle* getBottle(int idx);
-	void setBottle(int idx, Bottle b);
-	
-private:
-	Bottle m_bottles[MAX_BOTTLES];
-
-	byte m_current_bottle_idx;
-};
-
-inline byte Crate::getCurrentBottleIdx() static {
-	return m_current_bottle_idx;
-}
-inline Bottle* Crate::getBottle(int idx) {
-	return m_bottles[idx];
-}
-
-Crate::Crate() : m_current_bottle( 0 )
-			   , m_bottles {} {
-}
-Crate::~Crate(){
-}
-
-
-void Crate::addBottle(float spoons, int volume, int time)
-{
-	Bottle new_bottle = {spoons, volume, volume, time};
-
-	m_current_bottle++;
-	if ( m_current_bottle >= MAX_BOTTLES ) {
-		m_current_bottle = 0;
-	}
-
-	m_bottles[m_current_bottle] = new_bottle;
-}
-
-Interface::Interface() : m_current_view( Views::history )
-					   , m_menu_item( Views::newBottle )
-					   , m_old_menu_item( Views::none )
-					   , m_bottle_option( BottleItem::spoons )
-					   , m_old_bottle_option( BottleItem::none )
+Interface::Interface() : m_current_view( viewHistory )
+					   , m_menu_item( viewNewBottle )
+					   , m_old_menu_item( viewNone )
+					   , m_bottle_option( bottleSpoons )
+					   , m_old_bottle_option( bottleNone )
 					   , m_bottle_spoons( DEFAULT_SPOONS )
 					   , m_old_bottle_spoons( -1.0 )
 					   , m_bottle_volume( DEFAULT_VOLUME )
@@ -143,13 +149,13 @@ Interface::Interface() : m_current_view( Views::history )
 Interface::~Interface(){
 }
 
-int Interface::readButtons() static {
+int Interface::readButtons() const {
 	int adc_key_in = analogRead(0);      // read the value from the sensor
 
 	// my buttons when read are centered at these valies: 0, 144, 329, 504, 741
 	// we add approx 50 to those values and check to see if we are close
 	if ( adc_key_in > 790 ) {
-		return Button::none;
+		return buttonNone;
 	}
 
 	// We make this the 1st option for speed reasons since it will be the most likely result
@@ -157,40 +163,40 @@ int Interface::readButtons() static {
 	delay(DELAY_TIME);
 
 	if ( adc_key_in < 50 ) {
-		return Button::right;
+		return buttonRight;
 	}
 	if ( adc_key_in < 195 ) {
-		return Button::up;
+		return buttonUp;
 	}
 	if ( adc_key_in < 380 ) {
-		return Button::down;
+		return buttonDown;
 	}
 	if ( adc_key_in < 555 ) {
-		return Button::left;
+		return buttonLeft;
 	}
 	if ( adc_key_in < 790 ) {
-		return Button::select;
+		return buttonSelect;
 	}
 
-	return Button::none;
+	return buttonNone;
 }
 
 // Resets the global variables to their initial state (done before entering the view).
 void Interface::restoreDefaults()
 {
-	menu_item = Views::newBottle;
-	m_old_menu_item = Views::none;
+	m_menu_item = viewNewBottle;
+	m_old_menu_item = viewNone;
 
-	bottle_option = BottleItem::spoons;
-	m_old_bottle_option = BottleItem::none;
-	bottle_spoons = DEFAULT_SPOONS;
+	m_bottle_option = bottleSpoons;
+	m_old_bottle_option = bottleNone;
+	m_bottle_spoons = DEFAULT_SPOONS;
 	m_old_bottle_spoons = -1.0;
-	bottle_volume = DEFAULT_VOLUME;
+	m_bottle_volume = DEFAULT_VOLUME;
 	m_old_bottle_volume = -1;
-	bottle_time = 12;
+	m_bottle_time = 12;
 	m_old_bottle_time = -1;
 
-	m_displayed_bottle = m_crate.getCurrentBottleIdx;
+	m_displayed_bottle = m_crate.getCurrentBottleIdx();
 	m_old_displayed_bottle = -1;
 }
 
@@ -210,23 +216,20 @@ void Interface::bottleView(int index)
 		update_display = true;
 	}
 
-	if ( m_bottle_option == BottleItem::remaining &&
+	if ( m_bottle_option == bottleRemaining &&
 		 m_bottle_volume != m_old_bottle_volume ) {
 		m_old_bottle_volume = m_bottle_volume;
 		update_display = true;
 	}
 
+	Bottle current_bottle = m_crate.getBottle( index );
+
 	if ( update_display ) {
 		lcd.clear();
 		lcd.setCursor(0,0);
 
-		// There is no concurrency. The bottle pointed to be the
-		// return value of the function is guaranteed to persist till
-		// the end of this function's scope.
-		Bottle* p_current_bottle = m_crate.getBottle( index );
-
 		switch ( m_bottle_option ) {
-		case BottleItem::remaining: {
+		case bottleRemaining: {
 			// Specify what's left of the bottle.
 			lcd.print("Remaining:");
 			if ( m_bottle_volume >= 100 ) {
@@ -237,7 +240,7 @@ void Interface::bottleView(int index)
 			}
 	
 			lcd.print(min(m_bottle_volume,
-						  p_current_bottle.volume));
+						  current_bottle.volume));
 			lcd.setCursor(3,1);
 			lcd.print("ml");
 			break;
@@ -248,34 +251,34 @@ void Interface::bottleView(int index)
 			// bottle.
       
 			lcd.setCursor( 0, 0 );
-			lcd.print( p_current_bottle.spoons );
+			lcd.print( current_bottle.spoons );
 
-			if ( p_current_bottle.remaining < 100 ) {
+			if ( current_bottle.remaining < 100 ) {
 				lcd.setCursor( 8, 0 );
 			} else {
 				lcd.setCursor( 7, 0 );
 			}
-			lcd.print(p_current_bottle.remaining);
+			lcd.print(current_bottle.remaining);
 	
 			lcd.setCursor(10, 0);
 			lcd.print("/");
 
-			if (p_current_bottle.volume < 100) {
+			if (current_bottle.volume < 100) {
 				lcd.setCursor(12, 0);
 			} else {
 				lcd.setCursor(11, 0);
 			}
-			lcd.print(p_current_bottle.volume);
+			lcd.print(current_bottle.volume);
 			lcd.setCursor(14, 0);
 			lcd.print("ml");
 	  
 
 			lcd.setCursor(3, 1);
-			lcd.print(p_current_bottle.time);
+			lcd.print(current_bottle.time);
 			lcd.setCursor(5,1);
 			lcd.print(":");
 			lcd.setCursor(6,1);
-			lcd.print(p_current_bottle.time);
+			lcd.print(current_bottle.time);
 	  
 	
 			break;
@@ -286,43 +289,44 @@ void Interface::bottleView(int index)
 	int lcd_key = readButtons();
 
 	switch ( lcd_key ) {
-	case Button::right: {
-		if ( m_bottle_option != BottleItem::remaining ) {
-			m_bottle_option = BottleItem::remaining;
+	case buttonRight: {
+		if ( m_bottle_option != bottleRemaining ) {
+			m_bottle_option = bottleRemaining;
 			break;
 		} else {
-			p_current_bottle.remaining = m_bottle_volume;
-			m_bottle_option = BottleItem::spoons;
+			current_bottle.remaining = m_bottle_volume;
+			m_crate.setBottle( index, current_bottle );
+			m_bottle_option = bottleSpoons;
 			break;
 		}
 	}
-	case Button::left: {
-		if ( m_bottle_option != BottleItem::remaining ) {
+	case buttonLeft: {
+		if ( m_bottle_option != bottleRemaining ) {
 			// Abort and return to current bottle view.
 			view();
 			break;
 		} else {
-			m_bottle_option = BottleItem::spoons;
+			m_bottle_option = bottleSpoons;
 			break;
 		}
 	}
-	case Button::up: {
-		if ( m_bottle_option != BottleItem::remaining ) {
+	case buttonUp: {
+		if ( m_bottle_option != bottleRemaining ) {
 			if ( m_displayed_bottle != MAX_BOTTLES - 1 ){
 				m_displayed_bottle++;
 			} else {
 				m_displayed_bottle = 0;
 			}
 		} else {
-			if ( m_bottle_volume < p_current_bottle.volume ) {
+			if ( m_bottle_volume < current_bottle.volume ) {
 				m_bottle_volume = m_bottle_volume + 10;
 			}
 			break;
 		}
 		break;
 	}
-	case Button::down: {
-		if ( m_bottle_option != BottleItem::remaining ) {
+	case buttonDown: {
+		if ( m_bottle_option != bottleRemaining ) {
 			if ( m_displayed_bottle != 0 ){
 				m_displayed_bottle--;
 			} else {
@@ -344,28 +348,28 @@ void Interface::bottleView(int index)
 }
 
 /* Main navigation utility allowing the user to reach all the different views and options. */
-void menuView() 
+void Interface::menuView()
 {
-	if ( menu_item != m_old_menu_item ){
+	if ( m_menu_item != m_old_menu_item ){
 		m_old_menu_item = m_menu_item;
 
 		lcd.clear();
 		lcd.setCursor(0,0);
-		switch ( menu_item ) {
+		switch ( m_menu_item ) {
 
-		case Views::newBottle: {
+		case viewNewBottle: {
 			lcd.print("> New bottle");
 			lcd.setCursor(2,1);
 			lcd.print("Total consumption");
 			break;
 		}
-		case Views::consumption: {
+		case viewConsumption: {
 			lcd.print("> Total consumption");
 			lcd.setCursor(2,1);
 			lcd.print("History");
 			break;
 		}
-		case Views::time: {
+		case viewTime: {
 			lcd.print("> Set time");
 			lcd.setCursor(2,1);
 			lcd.print("New bottle");
@@ -377,7 +381,7 @@ void menuView()
 	int lcd_key = readButtons();
 
 	switch ( lcd_key ) {
-	case Button::right: {
+	case buttonRight: {
 		// Restore the default values for all options within the particular views.
 		restoreDefaults();
 
@@ -385,32 +389,32 @@ void menuView()
 		m_current_view = m_menu_item;
 		break;
 	}
-	case Button::left {
+	case buttonLeft: {
 		restoreDefaults();
 		// Abort and return to current bottle view.
-		m_current_view = Views::history;
-		m_displayed_bottle = m_crate.getCurrentBottleIdx;
+		m_current_view = viewHistory;
+		m_displayed_bottle = m_crate.getCurrentBottleIdx();
 		break;
 	}
-	case Button::up: {
-		if ( menu_item == Views::newBottle ) {
-			menu_item = Views::time;
-		} else if ( menu_item == Views::consumption ) {
-			menu_item = Views::newBottle;
-		} else if ( menu_item == Views::time ) {
-			menu_item = Views::consumption;
+	case buttonUp: {
+		if ( m_menu_item == viewNewBottle ) {
+			m_menu_item = viewTime;
+		} else if ( m_menu_item == viewConsumption ) {
+			m_menu_item = viewNewBottle;
+		} else if ( m_menu_item == viewTime ) {
+			m_menu_item = viewConsumption;
 		} else {
 			Serial.println("Unsupported menu_item in menuView");
 		}
 		break;
 	}
-	case Button::down: {
-		if ( menu_item == Views::newBottle ) {
-			menu_item = Views::consumption;
-		} else if ( menu_item == Views::consumption ) {
-			menu_item = Views::time;
-		} else if ( menu_item == Views::time ) {
-			menu_item = Views::newBottle;
+	case buttonDown: {
+		if ( m_menu_item == viewNewBottle ) {
+			m_menu_item = viewConsumption;
+		} else if ( m_menu_item == viewConsumption ) {
+			m_menu_item = viewTime;
+		} else if ( m_menu_item == viewTime ) {
+			m_menu_item = viewNewBottle;
 		} else {
 			Serial.println("Unsupported menu_item in menuView");
 		}
@@ -423,7 +427,7 @@ void menuView()
 }
 
 /* Allows the user to add a new bottle.*/
-void newBottleView()
+void Interface::newBottleView()
 {
 	bool update_display = false;
 	if ( m_bottle_option != m_old_bottle_option ) {
@@ -431,17 +435,17 @@ void newBottleView()
 		update_display = true;
 	}
 
-	if ( m_bottle_option == BottleItem::spoons &&
+	if ( m_bottle_option == bottleSpoons &&
 		 m_bottle_spoons != m_old_bottle_spoons) {
 		m_old_bottle_spoons = m_bottle_spoons;
 		update_display = true;
 	}
-	else if ( m_bottle_option == BottleItem::volume &&
+	else if ( m_bottle_option == bottleVolume &&
 			  m_bottle_volume != m_old_bottle_volume ) {
 		m_old_bottle_volume = m_bottle_volume;
 		update_display = true;
 	}
-	else if ( m_bottle_option == BottleItem::time &&
+	else if ( m_bottle_option == bottleTime &&
 			  m_bottle_time != m_old_bottle_time ) {
 		m_old_bottle_time = m_bottle_time;
 		update_display = true;
@@ -452,14 +456,14 @@ void newBottleView()
 	if ( update_display ) {
 		lcd.clear();
 		lcd.setCursor(0,0);
-		switch ( bottle_option ) {
-		case BottleItem::spoons: {
+		switch ( m_bottle_option ) {
+		case bottleSpoons: {
 			lcd.print("Spoons:");
 			lcd.setCursor(8,0);
 			lcd.print( m_bottle_spoons );
 			break;
 		}
-		case BottleItem::volume: {
+		case bottleVolume: {
 			lcd.print("Volume:");
 			if ( m_bottle_volume >= 100 ) {
 				lcd.setCursor(8,0);
@@ -471,7 +475,7 @@ void newBottleView()
 			lcd.print("ml");
 			break;
 		}
-		case BottleItem::time: {
+		case bottleTime: {
 			lcd.print("Time:");
 			lcd.setCursor(6,0);
 			lcd.print( m_bottle_time );
@@ -486,52 +490,51 @@ void newBottleView()
 	int lcd_key = readButtons();
 
 	switch ( lcd_key ) {
-	case Button::right: {
+	case buttonRight: {
 		if ( m_bottle_option == 0 ) {
-			m_bottle_option = BottleItem::volume;
+			m_bottle_option = bottleVolume;
 			break;
 		} else if ( m_bottle_option == 1 ) {
-			m_bottle_option = BottleItem::time;
+			m_bottle_option = bottleTime;
 			break;
 		} else {
-			addBottle(
-					  m_bottle_spoons,
-					  m_bottle_volume,
-					  m_bottle_time);
-			m_displayed_bottle = m_create.getCurrentBottleIdx();
+			m_crate.addBottle( m_bottle_spoons,
+							   m_bottle_volume,
+							   m_bottle_time );
+			m_displayed_bottle = m_crate.getCurrentBottleIdx();
 			restoreDefaults();
-			m_current_view = VIEW_HISTORY;
+			m_current_view = viewHistory;
 			break;
 		}
 	}
-	case Button::left: {
+	case buttonLeft: {
 		if ( m_bottle_option == 0 ) {
 			restoreDefaults();
 			// Abort and return to current bottle view.
-			m_current_view = Views::history;
+			m_current_view = viewHistory;
 			break;
 		} else if ( m_bottle_option == 1 ) {
-			m_bottle_option = BottleItem::spoons:
+			m_bottle_option = bottleSpoons;
 			break;
 		} else {
-			m_bottle_option = BottleItem::volume;
+			m_bottle_option = bottleVolume;
 			break;
 		}
 	}
-	case Button::up: {
+	case buttonUp: {
 		switch ( m_bottle_option ) {
-		case BottleItem::spoons: {
+		case bottleSpoons: {
 			m_bottle_spoons = m_bottle_spoons + 0.25;
 			break;
 		}
-		case BottleItem::volume: {
+		case bottleVolume: {
 			// There is a maximum value of a bottle.
 			if ( m_bottle_volume < 250 ) {
 				m_bottle_volume = m_bottle_volume + 10;
 			}
 			break;
 		}
-		case BottleItem::time: {
+		case bottleTime: {
 			m_bottle_time++;
 			break;
 		}
@@ -542,21 +545,21 @@ void newBottleView()
 		}
 		break;
 	}
-	case Button::down: {
+	case buttonDown: {
 		switch ( m_bottle_option ) {
-		case BottleItem::spoons: {
+		case bottleSpoons: {
 			if ( m_bottle_spoons > 0 ) {
 				m_bottle_spoons = m_bottle_spoons - 0.25;
 			}
 			break;
 		}
-		case BottleItem::volume: {
+		case bottleVolume: {
 			if ( m_bottle_volume > 0 ) {
 				m_bottle_volume = m_bottle_volume - 10;
 			}
 			break;
 		}
-		case BottleItem::time: {
+		case bottleTime: {
 			m_bottle_time--;
 			break;
 		}
@@ -576,42 +579,42 @@ void newBottleView()
 }
 
 /* Displays the total consumption in volume and number of spoons within the last 24 hours.*/
-void consumptionView()
+void Interface::consumptionView()
 {
 }
 
 /* Displays all bottles stored in memory with latest first. Uses the currentBottleView() for a particular pair of bottles.*/
-void historyView()
+void Interface::historyView()
 {
 	bottleView(m_displayed_bottle);
 }
 
 /* Allows the user to insert a reference time.*/
-void setTimeView()
+void Interface::setTimeView()
 {
 }
 
 /* Displays a particular view. */
-void startView()
+void Interface::view()
 {
 	switch ( m_current_view ) {
-		case Views::history: {
+		case viewHistory: {
 			historyView();
 			break;
 		}
-		case Views::menu: {
+		case viewMenu: {
 			menuView();
 			break;
 		}
-		case Views::newBottle: {
+		case viewNewBottle: {
 			newBottleView();
 			break;
 		}
-		case Views::consumption: {
+		case viewConsumption: {
 			consumptionView();
 			break;
 		}
-		case Views::time: {
+		case viewTime: {
 			setTimeView();
 			break;
 		}
@@ -624,15 +627,13 @@ void startView()
 	int lcd_key = readButtons();
 
 	switch ( lcd_key ) {
-	case Button::select: {
-		m_current_view = Views::menu;
+	case buttonSelect: {
+		m_current_view = viewMenu;
 		break;
 	}
 	}
 }
 
-// Specify the pins used by the LCD
-LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 Interface app;
 
 void setup(){
@@ -645,7 +646,7 @@ void setup(){
 
 void loop()
 {
-	app::view();
+	app.view();
 }
 
 
