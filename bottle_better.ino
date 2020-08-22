@@ -26,12 +26,6 @@ class Crate {
 public:
 	Crate();
 	~Crate();
-	/* Adds a new bottle to the global bottles array and increments
-	   current_bottle. This array will be filled in a cyclic fashion while
-	   overwriting the oldest entry.
-
-	   Upon adding a bottle is considered full.*/
-	void addBottle(float spoons, int volume, int time);
 
 	int totalVolume(int from, int till) const;
 	int totalSpoons(int from, int till) const;
@@ -39,6 +33,16 @@ public:
 	int getCurrentBottleIdx() const;
 	Bottle getBottle(int idx) const;
 	void setBottle(int idx, Bottle b);
+
+	bool isBottleUndefined(int idx) const;
+	/* Adds a new bottle to the global bottles array and increments
+	   current_bottle. This array will be filled in a cyclic fashion while
+	   overwriting the oldest entry.
+
+	   Upon adding a bottle is considered full.*/
+	void addBottle(float spoons, int volume, int time);
+
+	void printContent() const;
 	
 private:
 	Bottle m_bottles[MAX_BOTTLES];
@@ -46,22 +50,46 @@ private:
 	byte m_current_bottle_idx;
 };
 
-inline int Crate::getCurrentBottleIdx() const {
-	return m_current_bottle_idx;
-}
-inline Bottle Crate::getBottle(int idx) const {
-	return m_bottles[idx];
-}
-inline void Crate::setBottle(int idx, Bottle b) {
-	m_bottles[idx] = b;
-}
-
 Crate::Crate() : m_current_bottle_idx( 0 )
 			   , m_bottles {} {
 }
 Crate::~Crate(){
 }
 
+int Crate::getCurrentBottleIdx() const {
+	return m_current_bottle_idx;
+}
+Bottle Crate::getBottle(int idx) const {
+	return m_bottles[idx];
+}
+void Crate::setBottle(int idx, Bottle b) {
+	m_bottles[idx] = b;
+}
+bool Crate::isBottleUndefined(int idx) const {
+	if ( m_bottles[idx].spoons == 0 &&
+		 m_bottles[idx].volume == 0 &&
+		 m_bottles[idx].remaining == 0 &&
+		 m_bottles[idx].time == 0 ) {
+		return true;
+	}
+	return false;
+}
+void Crate::printContent() const {
+	Serial.println("\nBottles stored in crate:");
+	for ( int ii = 0; ii < MAX_BOTTLES; ii++ ) {
+		if ( !isBottleUndefined( ii ) ) {
+			Serial.print(ii);
+			Serial.print(":\t");
+			Serial.print(m_bottles[ii].spoons);
+			Serial.print("\t");
+			Serial.print(m_bottles[ii].volume);
+			Serial.print(" ml\t");
+			Serial.print(m_bottles[ii].remaining);
+			Serial.print(" ml\t");
+			Serial.println(m_bottles[ii].time);
+		}
+	}
+}
 
 void Crate::addBottle(float spoons, int volume, int time)
 {
@@ -73,6 +101,9 @@ void Crate::addBottle(float spoons, int volume, int time)
 	}
 
 	m_bottles[m_current_bottle_idx] = new_bottle;
+
+	Serial.println("adding a bottle");
+	printContent();
 }
 
 class Interface {
@@ -340,10 +371,6 @@ void Interface::bottleView(int index)
 		}
 		break;
 	}
-	default: {
-		Serial.println("Unknown button in bottleView");
-		break;
-	}
 	}
 }
 
@@ -366,7 +393,7 @@ void Interface::menuView()
 		case viewConsumption: {
 			lcd.print("> Total consumption");
 			lcd.setCursor(2,1);
-			lcd.print("History");
+			lcd.print("Set time");
 			break;
 		}
 		case viewTime: {
@@ -420,9 +447,6 @@ void Interface::menuView()
 		}
 		break;
 	}
-	default: {
-		Serial.println("Unsupported button in menuView");
-	}
 	}
 }
 
@@ -449,8 +473,6 @@ void Interface::newBottleView()
 			  m_bottle_time != m_old_bottle_time ) {
 		m_old_bottle_time = m_bottle_time;
 		update_display = true;
-	} else {
-		Serial.println("Unsupported bottle_option in newBottleView");
 	}
 
 	if ( update_display ) {
@@ -568,10 +590,6 @@ void Interface::newBottleView()
 			break;
 		}
 		}
-		break;
-	}
-	default: {
-		Serial.println("Unsupported button in newBottleView");
 		break;
 	}
 	}
