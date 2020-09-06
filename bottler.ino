@@ -12,6 +12,9 @@ RTC_DS1307 rtc;
 #define DELAY_TIME 100
 #define DEFAULT_VOLUME 140
 #define DEFAULT_SPOONS 3.5
+// Just having 50 bottles will hopefully do the job. Having 256 would
+// be too much for the Arduino Uno to handle (although it's no problem
+// for the Arduino Mega)
 #define MAX_BOTTLES 50
 
 #define DISPLAY_ACTIVE_DURATION 30
