@@ -1,14 +1,18 @@
 //Sample using LiquidCrystal library
+#include <Wire.h>
 #include <LiquidCrystal.h>
+#include <RTClib.h>
 
 // Specify the pins used by the LCD
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+
+RTC_DS1307 rtc;
 
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
 #define DELAY_TIME 100
 #define DEFAULT_VOLUME 140
 #define DEFAULT_SPOONS 3.5
-#define MAX_BOTTLES 256
+#define MAX_BOTTLES 50
 
 #define DISPLAY_ACTIVE_DURATION 30
 
@@ -707,7 +711,21 @@ void Interface::view()
 Interface app;
 
 void setup(){
-	
+
+	  if (! rtc.begin()) 
+  {
+    lcd.print("Couldn't find RTC");
+    while (1);
+  }
+
+  if (! rtc.isrunning()) 
+  {
+    lcd.print("RTC is NOT running!");
+  }
+  
+    // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));//auto update from computer time
+    rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));// to set the time manualy 
+  
 	lcd.begin(16, 2);
 	lcd.setCursor(0,0);
 	lcd.print("Bottle-Spass");
