@@ -10,6 +10,12 @@ LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 #define DEFAULT_SPOONS 3.5
 #define MAX_BOTTLES 256
 
+#define DISPLAY_ACTIVE_DURATION 30
+
+// Specifies whether the custom shield or - if not defined - the DF
+// Robot LCD Keypad Shield was used.
+#define CUSTOM_SHIELD
+
 enum Button { buttonRight, buttonUp, buttonDown, buttonLeft,
 	buttonSelect, buttonNone };
 enum Views { viewHistory, viewMenu, viewNewBottle, viewConsumption, viewTime, viewNone };
@@ -123,11 +129,21 @@ private:
 	void consumptionView();
 	void setTimeView();
 
+	void toggleDisplay();
+
 	int readButtons() const;
 	// Resets the global variables to their initial state (done before entering the view).
 	void restoreDefaults();
 
 	Crate m_crate;
+
+	// Specifies whether to turn on the LCD display or not. This is
+	// used to reduce power consumption and the display will be set to
+	// off after `DISPLAY_ACTIVE_DURATION` without no user input
+	// automatically.
+	bool m_display_active;
+	// Timestamp of the last user interaction.
+	int m_last_user_interaction;
 
 	int m_current_view;
 	
@@ -183,33 +199,60 @@ Interface::~Interface(){
 int Interface::readButtons() const {
 	int adc_key_in = analogRead(0);      // read the value from the sensor
 
-	// my buttons when read are centered at these valies: 0, 144, 329, 504, 741
-	// we add approx 50 to those values and check to see if we are close
+	// my buttons when read are centered at these values: 0, 144, 329, 504, 741
+	// we add approx 50 to those values and check to see if we are
+	// close
+
+#ifndef CUSTOM_SHIELD
 	if ( adc_key_in > 790 ) {
 		return buttonNone;
 	}
-
+#endif
+	
 	// We make this the 1st option for speed reasons since it will be the most likely result
-
 	delay(DELAY_TIME);
 
-	if ( adc_key_in < 50 ) {
+#ifdef CUSTOM_SHIELD
+	if ( adc_key_in < 500 ) {
+		return buttonNone;
+	} else if ( adc_key_in < 720 ) {
+		return buttonSelect;
+	} else if ( adc_key_in < 900 ) {
+		return buttonLeft;
+	} else if ( adc_key_in < 950 ) {
+		return buttonDown;
+	} else if ( adc_key_in < 1005 ) {
+		return buttonUp;
+	} else {
 		return buttonRight;
 	}
-	if ( adc_key_in < 195 ) {
+#else
+	if ( adc_key_in < 50 ) {
+		return buttonRight;
+	} else if ( adc_key_in < 195 ) {
 		return buttonUp;
-	}
-	if ( adc_key_in < 380 ) {
+	} else if ( adc_key_in < 380 ) {
 		return buttonDown;
-	}
-	if ( adc_key_in < 555 ) {
+	} else if ( adc_key_in < 555 ) {
 		return buttonLeft;
-	}
-	if ( adc_key_in < 790 ) {
+	} else if ( adc_key_in < 790 ) {
 		return buttonSelect;
 	}
-
+#endif
+	
 	return buttonNone;
+}
+
+void Interface::toggleDisplay() {
+	if ( m_display_active ) {
+		// if ( now() - m_last_user_interaction < DISPLAY_ACTIVE_DURATION ) {
+		// 	lcd.noDisplay();
+		// 	m_display_active = false;
+		// }
+	} else {
+		lcd.display();
+		m_display_active = true;
+	}
 }
 
 // Resets the global variables to their initial state (done before entering the view).
@@ -254,7 +297,7 @@ void Interface::bottleView(int index)
 	}
 
 	Bottle current_bottle = m_crate.getBottle( index );
-
+	
 	if ( update_display ) {
 		lcd.clear();
 		lcd.setCursor(0,0);
@@ -615,7 +658,8 @@ void Interface::setTimeView()
 /* Displays a particular view. */
 void Interface::view()
 {
-	switch ( m_current_view ) {
+	if ( m_display_active ) {
+		switch ( m_current_view ) {
 		case viewHistory: {
 			historyView();
 			break;
@@ -641,14 +685,22 @@ void Interface::view()
 			break;
 		}
 		}
+	}
 
 	int lcd_key = readButtons();
 
-	switch ( lcd_key ) {
-	case buttonSelect: {
-		m_current_view = viewMenu;
-		break;
-	}
+	if ( lcd_key != buttonNone ) {
+		if ( m_display_active ) {
+			if ( lcd_key == buttonSelect ) {
+				m_current_view = viewMenu;
+			}
+		} else {
+			toggleDisplay();
+		}
+	} else {
+		// If no button was hit we will check if it is already time to
+		// automatically turn off the display.
+		toggleDisplay();
 	}
 }
 
