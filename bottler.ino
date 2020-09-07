@@ -3,20 +3,21 @@
 #include <LiquidCrystal.h>
 #include <RTClib.h>
 
-// Specify the pins used by the LCD
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
-
 RTC_DS1307 rtc;
 
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
 #define DELAY_TIME 100
+
 #define DEFAULT_VOLUME 140
 #define DEFAULT_SPOONS 3.5
+
 // Just having 50 bottles will hopefully do the job. Having 256 would
 // be too much for the Arduino Uno to handle (although it's no problem
 // for the Arduino Mega)
 #define MAX_BOTTLES 50
 
+// Amount of seconds the display stays on until it powers off automatically.
 #define DISPLAY_ACTIVE_DURATION 30
 
 // Specifies whether the custom shield or - if not defined - the DF
@@ -32,7 +33,7 @@ struct Bottle {
 	float spoons;
 	int volume;
 	int remaining;
-	int time;
+	DateTime time;
 };
 
 class Crate {
@@ -53,7 +54,7 @@ public:
 	   overwriting the oldest entry.
 
 	   Upon adding a bottle is considered full.*/
-	void addBottle(float spoons, int volume, int time);
+	void addBottle(float spoons, int volume, DateTime time);
 
 	void printContent() const;
 	
@@ -81,8 +82,7 @@ void Crate::setBottle(int idx, Bottle b) {
 bool Crate::isBottleUndefined(int idx) const {
 	if ( m_bottles[idx].spoons == 0 &&
 		 m_bottles[idx].volume == 0 &&
-		 m_bottles[idx].remaining == 0 &&
-		 m_bottles[idx].time == 0 ) {
+		 m_bottles[idx].remaining == 0 ) {
 		return true;
 	}
 	return false;
@@ -99,12 +99,12 @@ void Crate::printContent() const {
 			Serial.print(" ml\t");
 			Serial.print(m_bottles[ii].remaining);
 			Serial.print(" ml\t");
-			Serial.println(m_bottles[ii].time);
+			Serial.println(m_bottles[ii].time.toString("hh:mm"));
 		}
 	}
 }
 
-void Crate::addBottle(float spoons, int volume, int time)
+void Crate::addBottle(float spoons, int volume, DateTime time)
 {
 	Bottle new_bottle = {spoons, volume, volume, time};
 
@@ -150,7 +150,7 @@ private:
 	// automatically.
 	bool m_display_active;
 	// Timestamp of the last user interaction.
-	int m_last_user_interaction;
+	DateTime m_last_user_interaction;
 
 	int m_current_view;
 	
@@ -177,8 +177,8 @@ private:
 	float m_old_bottle_spoons;
 	int m_bottle_volume;
 	int m_old_bottle_volume;
-	int m_bottle_time;
-	int m_old_bottle_time;
+	DateTime m_bottle_time;
+	DateTime m_old_bottle_time;
 	int m_old_displayed_bottle;
 
 };
@@ -193,10 +193,11 @@ Interface::Interface() : m_current_view( viewHistory )
 					   , m_old_bottle_spoons( -1.0 )
 					   , m_bottle_volume( DEFAULT_VOLUME )
 					   , m_old_bottle_volume( 1 )
-					   , m_bottle_time( 12 )
-					   , m_old_bottle_time( -1 )
+					   , m_bottle_time( rtc.now() )
+					   , m_old_bottle_time( DateTime(0,0,0) )
 					   , m_displayed_bottle( 0 )
 					   , m_old_displayed_bottle( -1 )
+					   , m_display_active( true )
 					   , m_crate{}{
 }
 
@@ -274,8 +275,8 @@ void Interface::restoreDefaults()
 	m_old_bottle_spoons = -1.0;
 	m_bottle_volume = DEFAULT_VOLUME;
 	m_old_bottle_volume = -1;
-	m_bottle_time = 12;
-	m_old_bottle_time = -1;
+	m_bottle_time = rtc.now();
+	m_old_bottle_time = DateTime(0, 0, 0);
 
 	m_displayed_bottle = m_crate.getCurrentBottleIdx();
 	m_old_displayed_bottle = -1;
@@ -355,11 +356,11 @@ void Interface::bottleView(int index)
 	  
 
 			lcd.setCursor(3, 1);
-			lcd.print(current_bottle.time);
-			lcd.setCursor(5,1);
-			lcd.print(":");
-			lcd.setCursor(6,1);
-			lcd.print(current_bottle.time);
+			lcd.print(current_bottle.time.toString("hh:mm"));
+			// lcd.setCursor(5,1);
+			// lcd.print(":");
+			// lcd.setCursor(6,1);
+			// lcd.print(current_bottle.time);
 	  
 	
 			break;
@@ -550,7 +551,7 @@ void Interface::newBottleView()
 		case bottleTime: {
 			lcd.print("Time:");
 			lcd.setCursor(6,0);
-			lcd.print( m_bottle_time );
+			lcd.print( m_bottle_time.toString("hh:mm" ));
 			break;
 		}
 		default: {
@@ -607,7 +608,7 @@ void Interface::newBottleView()
 			break;
 		}
 		case bottleTime: {
-			m_bottle_time++;
+			m_bottle_time = m_bottle_time + TimeSpan(0,0,1,0);
 			break;
 		}
 		default: {
@@ -632,7 +633,7 @@ void Interface::newBottleView()
 			break;
 		}
 		case bottleTime: {
-			m_bottle_time--;
+			m_bottle_time = m_bottle_time - TimeSpan(0,0,1,0);
 			break;
 		}
 		default: {
@@ -715,19 +716,18 @@ Interface app;
 
 void setup(){
 
-	  if (! rtc.begin()) 
-  {
-    lcd.print("Couldn't find RTC");
-    while (1);
-  }
+	if ( !rtc.begin() ) {
+		lcd.println("Couldn't find RTC");
+		while (1);
+	}
 
-  if (! rtc.isrunning()) 
-  {
-    lcd.print("RTC is NOT running!");
-  }
-  
-    // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));//auto update from computer time
-    rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));// to set the time manualy 
+	if ( !rtc.isrunning() ) { 
+		lcd.print("RTC is NOT running!");
+	}
+
+	// Use the time of the computer uploading this sketch to set the
+	// RTC.
+    rtc.adjust( DateTime(F(__DATE__), F(__TIME__)) );
   
 	lcd.begin(16, 2);
 	lcd.setCursor(0,0);
