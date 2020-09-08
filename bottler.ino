@@ -54,8 +54,13 @@ public:
 	Crate();
 	~Crate();
 
-	int totalVolume(int from, int till) const;
-	int totalSpoons(int from, int till) const;
+	// Calculates the amount of consumed volume within the past
+	// `since` hours.
+	int totalVolume(byte since) const;
+	// Calculates the amount of consumed milk powder based and the
+	// spoons used on percentage of the consumed volume within the
+	// past `since` hours.
+	int totalPowder(byte since) const;
 
 	int getCurrentBottleIdx() const;
 	Bottle getBottle(int idx) const;
@@ -130,6 +135,13 @@ void Crate::addBottle(float spoons, int volume, DateTime time)
 
 	Serial.println("adding a bottle");
 	printContent();
+}
+
+int Crate::totalVolume(byte since) const {
+	return 0;
+}
+int Crate::totalPowder(byte since) const {
+	return 0;
 }
 
 class Interface {
@@ -664,6 +676,45 @@ void Interface::newBottleView()
 /* Displays the total consumption in volume and number of spoons within the last 24 hours.*/
 void Interface::consumptionView()
 {
+
+	int consumed_volume = m_crate.totalVolume(24);
+	int consumed_powder = m_crate.totalPowder(24);
+	
+	// Ensure this view is only drawn once (since it's not possible to
+	// change the amount of remaining volume once the user entered
+	// this view).
+	if ( m_menu_item != m_old_menu_item ){
+		m_old_menu_item = m_menu_item;
+
+		lcd.clear();
+		lcd.setCursor(0,0);
+
+		lcd.print("Volume:");
+		if ( consumed_volume > 1000 ) {
+			lcd.setCursor(1,9);
+		} else if ( consumed_volume > 100  ) {
+			lcd.setCursor(1,10);
+		} else {
+			lcd.setCursor(1,11);
+		}
+		lcd.print(consumed_volume);
+		lcd.setCursor(1, 13);
+		lcd.print("ml");
+
+		lcd.setCursor(2,0);
+		lcd.print("Powder:");
+		lcd.setCursor(2,7);
+		lcd.print(consumed_powder);
+	}
+
+	int lcd_key = readButtons();
+
+	if ( lcd_key == buttonLeft ) {
+		restoreDefaults();
+		// Abort and return to current bottle view.
+		m_current_view = viewHistory;
+		m_displayed_bottle = m_crate.getCurrentBottleIdx();
+	}
 }
 
 /* Displays all bottles stored in memory with latest first. Uses the currentBottleView() for a particular pair of bottles.*/
