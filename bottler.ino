@@ -24,10 +24,23 @@ RTC_DS1307 rtc;
 // Robot LCD Keypad Shield was used.
 #define CUSTOM_SHIELD
 
+// In case the DF Robot Shield (or just a LCD display with buttons but
+// no RTC is used, we can not rely on it's now() function and have to
+// use our own.
+DateTime nowCustom() {
+#ifdef CUSTOM_SHIELD
+	return rtc.now();
+#else
+	return DateTime(uint32_t(millis()));
+#endif
+}
+	
+
 enum Button { buttonRight, buttonUp, buttonDown, buttonLeft,
 	buttonSelect, buttonNone };
 enum Views { viewHistory, viewMenu, viewNewBottle, viewConsumption, viewTime, viewNone };
 enum BottleItem { bottleSpoons, bottleVolume, bottleRemaining, bottleTime, bottleNone };
+
 
 struct Bottle {
 	float spoons;
@@ -193,8 +206,8 @@ Interface::Interface() : m_current_view( viewHistory )
 					   , m_old_bottle_spoons( -1.0 )
 					   , m_bottle_volume( DEFAULT_VOLUME )
 					   , m_old_bottle_volume( 1 )
-					   , m_bottle_time( rtc.now() )
-					   , m_old_bottle_time( DateTime(0,0,0) )
+					   , m_bottle_time( nowCustom() )
+					   , m_old_bottle_time( DateTime(uint32_t(0)) )
 					   , m_displayed_bottle( 0 )
 					   , m_old_displayed_bottle( -1 )
 					   , m_display_active( true )
@@ -253,10 +266,11 @@ int Interface::readButtons() const {
 
 void Interface::toggleDisplay() {
 	if ( m_display_active ) {
-		// if ( now() - m_last_user_interaction < DISPLAY_ACTIVE_DURATION ) {
-		// 	lcd.noDisplay();
-		// 	m_display_active = false;
-		// }
+		if ( nowCustom() - TimeSpan(DISPLAY_ACTIVE_DURATION) >
+			 m_last_user_interaction ) {
+			lcd.noDisplay();
+			m_display_active = false;
+		}
 	} else {
 		lcd.display();
 		m_display_active = true;
@@ -275,8 +289,8 @@ void Interface::restoreDefaults()
 	m_old_bottle_spoons = -1.0;
 	m_bottle_volume = DEFAULT_VOLUME;
 	m_old_bottle_volume = -1;
-	m_bottle_time = rtc.now();
-	m_old_bottle_time = DateTime(0, 0, 0);
+	m_bottle_time = nowCustom();
+	m_old_bottle_time = DateTime(uint32_t(0));
 
 	m_displayed_bottle = m_crate.getCurrentBottleIdx();
 	m_old_displayed_bottle = -1;
@@ -716,6 +730,7 @@ Interface app;
 
 void setup(){
 
+#ifndef CUSTOM_SHIELD
 	if ( !rtc.begin() ) {
 		lcd.println("Couldn't find RTC");
 		while (1);
@@ -728,6 +743,7 @@ void setup(){
 	// Use the time of the computer uploading this sketch to set the
 	// RTC.
     rtc.adjust( DateTime(F(__DATE__), F(__TIME__)) );
+#endif
   
 	lcd.begin(16, 2);
 	lcd.setCursor(0,0);
