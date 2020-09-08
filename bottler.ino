@@ -47,20 +47,28 @@ struct Bottle {
 	int volume;
 	int remaining;
 	DateTime time;
+
+	int consumedVolume() const;
+	float consumedPowder() const;
 };
+
+int Bottle::consumedVolume() const {
+	return volume - remaining;
+}
+float Bottle::consumedPowder() const {
+	return (volume - remaining) / volume * spoons;
+}
 
 class Crate {
 public:
 	Crate();
 	~Crate();
 
-	// Calculates the amount of consumed volume within the past
-	// `since` hours.
-	int totalVolume(byte since) const;
-	// Calculates the amount of consumed milk powder based and the
-	// spoons used on percentage of the consumed volume within the
-	// past `since` hours.
-	int totalPowder(byte since) const;
+	// Calculates the amount of consumed volume and milk powder -
+	// based and the spoons used on percentage of the consumed volume
+	// - within the past `since` hours. The results are provided using
+	// the pointers `volume` and `powder`.
+	void totalConsumption(byte since, int *volume, float *powder) const;
 
 	int getCurrentBottleIdx() const;
 	Bottle getBottle(int idx) const;
@@ -137,11 +145,23 @@ void Crate::addBottle(float spoons, int volume, DateTime time)
 	printContent();
 }
 
-int Crate::totalVolume(byte since) const {
-	return 0;
-}
-int Crate::totalPowder(byte since) const {
-	return 0;
+void Crate::totalConsumption(byte since, int *volume, float *powder) const {
+
+	int consumed_volume = 0;
+	float consumed_powder = 0;
+	
+	DateTime now = nowCustom();
+	
+	// Get the indices of all bottles of the last `since` hours.
+	for ( int ii = 0; ii < MAX_BOTTLES; ii++ ) {
+		if ( m_bottles[ii].time >= now - TimeSpan(0, since, 0, 0) ) {
+			consumed_volume += m_bottles[ii].consumedVolume();
+			consumed_powder += m_bottles[ii].consumedPowder();
+		}
+	}
+
+	*volume = consumed_volume;
+	*powder = consumed_powder;
 }
 
 class Interface {
@@ -677,8 +697,9 @@ void Interface::newBottleView()
 void Interface::consumptionView()
 {
 
-	int consumed_volume = m_crate.totalVolume(24);
-	int consumed_powder = m_crate.totalPowder(24);
+	int consumed_volume;
+	float consumed_powder;
+	m_crate.totalConsumption(24, &consumed_volume, &consumed_powder);
 	
 	// Ensure this view is only drawn once (since it's not possible to
 	// change the amount of remaining volume once the user entered
