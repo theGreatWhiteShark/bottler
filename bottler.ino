@@ -48,15 +48,42 @@ struct Bottle {
 	int remaining;
 	DateTime time;
 
+	// Since the spoons of milk powder themselves contribute to the
+	// total volume, they will be taken into account using this
+	// function.
+	//
+	// According to the instruction on the Aptamil package roughly
+	// three spoons amount to 10ml.
+	int totalVolume() const;
 	int consumedVolume() const;
+
+	// Consumed volume time `spoons` to only account the milk which
+	// actually got drunken.
+	//
+	// According to the instruction on the Aptamil package a spoons
+	// corresponds to 4.6g.
 	float consumedPowder() const;
+
+	// Helper function determining whether the time stamp of a bottle
+	// does lie within the last `hours` regardless of the shield used.
+	bool consumedDuringLastXHours(byte hours) const;
 };
 
+int Bottle::totalVolume() const {
+	return static_cast<int>(static_cast<float>(volume) + spoons * 10 / 3);
+}
+
 int Bottle::consumedVolume() const {
-	return volume - remaining;
+	return totalVolume() - remaining;
 }
 float Bottle::consumedPowder() const {
-	return (volume - remaining) / volume * spoons;
+	return static_cast<float>(consumedVolume()) /
+		static_cast<float>(totalVolume()) * spoons * 4.6;
+}
+
+bool Bottle::consumedDuringLastXHours(byte hours) const {
+	DateTime now = nowCustom();
+	return time >= now - TimeSpan(0, hours, 0, 0);
 }
 
 class Crate {
@@ -150,11 +177,9 @@ void Crate::totalConsumption(byte since, int *volume, float *powder) const {
 	int consumed_volume = 0;
 	float consumed_powder = 0;
 	
-	DateTime now = nowCustom();
-	
 	// Get the indices of all bottles of the last `since` hours.
 	for ( int ii = 0; ii < MAX_BOTTLES; ii++ ) {
-		if ( m_bottles[ii].time >= now - TimeSpan(0, since, 0, 0) ) {
+		if ( m_bottles[ii].consumedDuringLastXHours(since) ) {
 			consumed_volume += m_bottles[ii].consumedVolume();
 			consumed_powder += m_bottles[ii].consumedPowder();
 		}
