@@ -28,11 +28,11 @@ RTC_DS1307 rtc;
 // no RTC is used, we can not rely on it's now() function and have to
 // use our own.
 DateTime nowCustom() {
-#ifdef CUSTOM_SHIELD
-	return rtc.now();
-#else
+// #ifdef CUSTOM_SHIELD
+// 	return rtc.now();
+// #else
 	return DateTime(uint32_t(millis()));
-#endif
+// #endif
 }
 	
 
@@ -226,6 +226,9 @@ private:
 	
 	// Specifies which bottle in bottles is the most recent one.
 	int m_displayed_bottle;
+
+	// Whether to redraw the current view.
+	bool m_update_display;
 	
 	// Global constants used within the functions.
 
@@ -234,7 +237,6 @@ private:
 	// 3 - total consumption
 	// 4 - set time
 	int m_menu_item;
-	int m_old_menu_item;
 
 	// One after another the
 	// 0 - amount of spoons
@@ -242,32 +244,22 @@ private:
 	// 2 - time of creation will be inserted.
 	// The following variable will keep track of which is the current one.
 	int m_bottle_option;
-	int m_old_bottle_option;
 	float m_bottle_spoons;
-	float m_old_bottle_spoons;
 	int m_bottle_volume;
-	int m_old_bottle_volume;
 	DateTime m_bottle_time;
-	DateTime m_old_bottle_time;
-	int m_old_displayed_bottle;
 
 };
 
 
 Interface::Interface() : m_current_view( viewHistory )
 					   , m_menu_item( viewNewBottle )
-					   , m_old_menu_item( viewNone )
 					   , m_bottle_option( bottleSpoons )
-					   , m_old_bottle_option( bottleNone )
 					   , m_bottle_spoons( DEFAULT_SPOONS )
-					   , m_old_bottle_spoons( -1.0 )
 					   , m_bottle_volume( DEFAULT_VOLUME )
-					   , m_old_bottle_volume( 1 )
 					   , m_bottle_time( nowCustom() )
-					   , m_old_bottle_time( DateTime(uint32_t(0)) )
 					   , m_displayed_bottle( 0 )
-					   , m_old_displayed_bottle( -1 )
 					   , m_display_active( true )
+					   , m_update_display( true )
 					   , m_crate{}{
 }
 
@@ -331,6 +323,7 @@ void Interface::toggleDisplay() {
 	} else {
 		lcd.display();
 		m_display_active = true;
+		m_update_display = true;
 	}
 }
 
@@ -338,19 +331,13 @@ void Interface::toggleDisplay() {
 void Interface::restoreDefaults()
 {
 	m_menu_item = viewNewBottle;
-	m_old_menu_item = viewNone;
 
 	m_bottle_option = bottleSpoons;
-	m_old_bottle_option = bottleNone;
 	m_bottle_spoons = DEFAULT_SPOONS;
-	m_old_bottle_spoons = -1.0;
 	m_bottle_volume = DEFAULT_VOLUME;
-	m_old_bottle_volume = -1;
 	m_bottle_time = nowCustom();
-	m_old_bottle_time = DateTime(uint32_t(0));
 
 	m_displayed_bottle = m_crate.getCurrentBottleIdx();
-	m_old_displayed_bottle = -1;
 }
 
 
@@ -358,26 +345,10 @@ void Interface::restoreDefaults()
    within the array `bottles`. */
 void Interface::bottleView(int index)
 {
-	bool update_display = false;
-	if ( m_bottle_option != m_old_bottle_option ) {
-		m_old_bottle_option = m_bottle_option;
-		update_display = true;
-	}
-
-	if ( m_old_displayed_bottle != m_displayed_bottle ) {
-		m_old_displayed_bottle = m_displayed_bottle;
-		update_display = true;
-	}
-
-	if ( m_bottle_option == bottleRemaining &&
-		 m_bottle_volume != m_old_bottle_volume ) {
-		m_old_bottle_volume = m_bottle_volume;
-		update_display = true;
-	}
-
 	Bottle current_bottle = m_crate.getBottle( index );
 	
-	if ( update_display ) {
+	if ( m_update_display ) {
+		m_update_display = false;
 		lcd.clear();
 		lcd.setCursor(0,0);
 
@@ -445,21 +416,23 @@ void Interface::bottleView(int index)
 	case buttonRight: {
 		if ( m_bottle_option != bottleRemaining ) {
 			m_bottle_option = bottleRemaining;
-			break;
 		} else {
 			current_bottle.remaining = m_bottle_volume;
 			m_crate.setBottle( index, current_bottle );
 			m_bottle_option = bottleSpoons;
-			break;
 		}
+		m_update_display = true;
+		break;
 	}
 	case buttonLeft: {
 		if ( m_bottle_option != bottleRemaining ) {
 			// Abort and return to current bottle view.
+			m_update_display = true;
 			view();
 			break;
 		} else {
 			m_bottle_option = bottleSpoons;
+			m_update_display = true;
 			break;
 		}
 	}
@@ -474,8 +447,8 @@ void Interface::bottleView(int index)
 			if ( m_bottle_volume < current_bottle.volume ) {
 				m_bottle_volume = m_bottle_volume + 10;
 			}
-			break;
 		}
+		m_update_display = true;
 		break;
 	}
 	case buttonDown: {
@@ -491,6 +464,7 @@ void Interface::bottleView(int index)
 				m_bottle_volume = m_bottle_volume - 10;
 			}
 		}
+		m_update_display = true;
 		break;
 	}
 	}
@@ -499,9 +473,9 @@ void Interface::bottleView(int index)
 /* Main navigation utility allowing the user to reach all the different views and options. */
 void Interface::menuView()
 {
-	if ( m_menu_item != m_old_menu_item ){
-		m_old_menu_item = m_menu_item;
-
+	if ( m_update_display ){
+		m_update_display = false;
+		
 		lcd.clear();
 		lcd.setCursor(0,0);
 		switch ( m_menu_item ) {
@@ -536,6 +510,7 @@ void Interface::menuView()
 
 		// Enter the selected view.
 		m_current_view = m_menu_item;
+		m_update_display = true;
 		break;
 	}
 	case buttonLeft: {
@@ -543,6 +518,7 @@ void Interface::menuView()
 		// Abort and return to current bottle view.
 		m_current_view = viewHistory;
 		m_displayed_bottle = m_crate.getCurrentBottleIdx();
+		m_update_display = true;
 		break;
 	}
 	case buttonUp: {
@@ -555,6 +531,7 @@ void Interface::menuView()
 		} else {
 			Serial.println("Unsupported menu_item in menuView");
 		}
+		m_update_display = true;
 		break;
 	}
 	case buttonDown: {
@@ -567,6 +544,7 @@ void Interface::menuView()
 		} else {
 			Serial.println("Unsupported menu_item in menuView");
 		}
+		m_update_display = true;
 		break;
 	}
 	}
@@ -575,29 +553,8 @@ void Interface::menuView()
 /* Allows the user to add a new bottle.*/
 void Interface::newBottleView()
 {
-	bool update_display = false;
-	if ( m_bottle_option != m_old_bottle_option ) {
-		m_old_bottle_option = m_bottle_option;
-		update_display = true;
-	}
-
-	if ( m_bottle_option == bottleSpoons &&
-		 m_bottle_spoons != m_old_bottle_spoons) {
-		m_old_bottle_spoons = m_bottle_spoons;
-		update_display = true;
-	}
-	else if ( m_bottle_option == bottleVolume &&
-			  m_bottle_volume != m_old_bottle_volume ) {
-		m_old_bottle_volume = m_bottle_volume;
-		update_display = true;
-	}
-	else if ( m_bottle_option == bottleTime &&
-			  m_bottle_time != m_old_bottle_time ) {
-		m_old_bottle_time = m_bottle_time;
-		update_display = true;
-	}
-
-	if ( update_display ) {
+	if ( m_update_display ) {
+		m_update_display = false;
 		lcd.clear();
 		lcd.setCursor(0,0);
 		switch ( m_bottle_option ) {
@@ -637,10 +594,8 @@ void Interface::newBottleView()
 	case buttonRight: {
 		if ( m_bottle_option == 0 ) {
 			m_bottle_option = bottleVolume;
-			break;
 		} else if ( m_bottle_option == 1 ) {
 			m_bottle_option = bottleTime;
-			break;
 		} else {
 			m_crate.addBottle( m_bottle_spoons,
 							   m_bottle_volume,
@@ -648,22 +603,22 @@ void Interface::newBottleView()
 			m_displayed_bottle = m_crate.getCurrentBottleIdx();
 			restoreDefaults();
 			m_current_view = viewHistory;
-			break;
 		}
+		m_update_display = true;
+		break;
 	}
 	case buttonLeft: {
 		if ( m_bottle_option == 0 ) {
 			restoreDefaults();
 			// Abort and return to current bottle view.
 			m_current_view = viewHistory;
-			break;
 		} else if ( m_bottle_option == 1 ) {
 			m_bottle_option = bottleSpoons;
-			break;
 		} else {
 			m_bottle_option = bottleVolume;
-			break;
 		}
+		m_update_display = true;
+		break;
 	}
 	case buttonUp: {
 		switch ( m_bottle_option ) {
@@ -687,6 +642,7 @@ void Interface::newBottleView()
 			break;
 		}
 		}
+		m_update_display = true;
 		break;
 	}
 	case buttonDown: {
@@ -712,6 +668,7 @@ void Interface::newBottleView()
 			break;
 		}
 		}
+		m_update_display = true;
 		break;
 	}
 	}
@@ -729,8 +686,8 @@ void Interface::consumptionView()
 	// Ensure this view is only drawn once (since it's not possible to
 	// change the amount of remaining volume once the user entered
 	// this view).
-	if ( m_menu_item != m_old_menu_item ){
-		m_old_menu_item = m_menu_item;
+	if ( m_update_display ){
+		m_update_display = false;
 
 		lcd.clear();
 		lcd.setCursor(0,0);
@@ -760,6 +717,7 @@ void Interface::consumptionView()
 		// Abort and return to current bottle view.
 		m_current_view = viewHistory;
 		m_displayed_bottle = m_crate.getCurrentBottleIdx();
+		m_update_display = true;
 	}
 }
 
@@ -812,6 +770,7 @@ void Interface::view()
 		if ( m_display_active ) {
 			if ( lcd_key == buttonSelect ) {
 				m_current_view = viewMenu;
+				m_update_display = true;
 			}
 		} else {
 			toggleDisplay();
@@ -827,20 +786,20 @@ Interface app;
 
 void setup(){
 
-#ifndef CUSTOM_SHIELD
-	if ( !rtc.begin() ) {
-		lcd.println("Couldn't find RTC");
-		while (1);
-	}
+// #ifndef CUSTOM_SHIELD
+	// if ( !rtc.begin() ) {
+	// 	lcd.println("Couldn't find RTC");
+	// 	while (1);
+	// }
 
-	if ( !rtc.isrunning() ) { 
-		lcd.print("RTC is NOT running!");
-	}
+// 	if ( !rtc.isrunning() ) { 
+// 		lcd.print("RTC is NOT running!");
+// 	}
 
-	// Use the time of the computer uploading this sketch to set the
-	// RTC.
-    rtc.adjust( DateTime(F(__DATE__), F(__TIME__)) );
-#endif
+// 	// Use the time of the computer uploading this sketch to set the
+// 	// RTC.
+//     rtc.adjust( DateTime(F(__DATE__), F(__TIME__)) );
+// // #endif
   
 	lcd.begin(16, 2);
 	lcd.setCursor(0,0);
