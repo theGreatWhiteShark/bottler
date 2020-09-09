@@ -6,7 +6,7 @@ LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 RTC_DS1307 rtc;
 
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
-#define DELAY_TIME 150
+#define DELAY_TIME 90
 
 #define DEFAULT_VOLUME 140
 #define DEFAULT_SPOONS 3.5
@@ -40,7 +40,7 @@ enum Button { buttonRight, buttonUp, buttonDown, buttonLeft,
 	buttonSelect, buttonNone };
 
 enum Views { viewHistory, viewMenu, viewNewBottle, viewConsumption, viewTime, viewNone };
-enum BottleItem { bottleSpoons, bottleVolume, bottleRemaining, bottleTime1, bottleTime2, bottleNone };
+enum BottleItem { bottleSpoons, bottleVolume, bottleRemaining, bottleTime, bottleNone };
 
 
 struct Bottle {
@@ -205,7 +205,9 @@ private:
 	void menuView();
 	void newBottleView();
 	void consumptionView();
+#ifndef CUSTOM_SHIELD
 	void setTimeView();
+#endif
 
 	void toggleDisplay( bool on );
 
@@ -249,6 +251,15 @@ private:
 	int m_bottle_volume;
 	DateTime m_bottle_time;
 
+#ifndef CUSTOM_SHIELD
+	// Intermediate variable for adjusting the time if no RTC chip is
+	// present.
+	DateTime m_custom_time;
+#endif
+
+	// 0 - setting the hours and 1 - setting the minutes for both the
+	// custom time and a new bottle.
+	byte m_set_time_state;
 };
 
 
@@ -262,6 +273,7 @@ Interface::Interface() : m_current_view( viewHistory )
 					   , m_display_active( true )
 					   , m_update_display( true )
 					   , m_last_user_interaction( nowCustom() )
+					   , m_set_time_state( 0 )
 					   , m_crate{}{
 }
 
@@ -343,6 +355,8 @@ void Interface::restoreDefaults()
 	m_bottle_time = nowCustom();
 
 	m_displayed_bottle = m_crate.getCurrentBottleIdx();
+
+	m_set_time_state = 0;
 }
 
 
@@ -591,7 +605,7 @@ void Interface::newBottleView()
 			lcd.print("ml");
 			break;
 		}
-		case bottleTime1: {
+		case bottleTime: {
 			lcd.print("Time:");
 			if ( m_bottle_time.hour() < 10 ) {
 				lcd.setCursor(6,0);
@@ -612,34 +626,13 @@ void Interface::newBottleView()
 			}
 			lcd.print(m_bottle_time.minute());
 
+		if ( m_set_time_state == 0 ) {
 			lcd.setCursor(6,1);
 			lcd.print("--");
-			break;
-		}
-		case bottleTime2: {
-			lcd.print("Time:");
-			if ( m_bottle_time.hour() < 10 ) {
-				lcd.setCursor(6,0);
-				lcd.print("0");
-				lcd.setCursor(7,0);
-			} else {
-				lcd.setCursor(6,0);
-			}
-			lcd.print(m_bottle_time.hour());
-			lcd.setCursor(8,0);
-			lcd.print(":");
-			if ( m_bottle_time.minute() < 10 ) {
-				lcd.setCursor(9,0);
-				lcd.print("0");
-				lcd.setCursor(10,0);
-			} else {
-				lcd.setCursor(9,0);
-			}
-			lcd.print(m_bottle_time.minute());
-
+		} else {
 			lcd.setCursor(9,1);
 			lcd.print("--");
-			break;
+		}	break;
 		}
 		default: {
 			Serial.println("Unsupported bottle_option in switch in newBottleView");
@@ -654,9 +647,10 @@ void Interface::newBottleView()
 		if ( m_bottle_option == bottleSpoons ) {
 			m_bottle_option = bottleVolume;
 		} else if ( m_bottle_option == bottleVolume ) {
-			m_bottle_option = bottleTime1;
-		} else if ( m_bottle_option == bottleTime1 ) {
-			m_bottle_option = bottleTime2;
+			m_bottle_option = bottleTime;
+		} else if ( m_bottle_option == bottleTime &&
+					m_set_time_state == 0 ) {
+			m_set_time_state = 1;
 		} else {
 			m_crate.addBottle( m_bottle_spoons,
 							   m_bottle_volume,
@@ -673,10 +667,14 @@ void Interface::newBottleView()
 			restoreDefaults();
 			// Abort and return to current bottle view.
 			m_current_view = viewHistory;
-		} else if ( m_bottle_option == 1 ) {
+		} else if ( m_bottle_option == bottleVolume ) {
 			m_bottle_option = bottleSpoons;
 		} else {
-			m_bottle_option = bottleVolume;
+			if ( m_set_time_state == 0 ) {
+				m_bottle_option = bottleVolume;
+			} else {
+				m_set_time_state = 1;
+			}
 		}
 		m_update_display = true;
 		break;
@@ -694,13 +692,12 @@ void Interface::newBottleView()
 			}
 			break;
 		}
-		case bottleTime1: {
-			m_bottle_time = m_bottle_time + TimeSpan(0,1,0,0);
-			break;
-		}
-		case bottleTime2: {
-			m_bottle_time = m_bottle_time + TimeSpan(0,0,1,0);
-			break;
+		case bottleTime: {
+			if ( m_set_time_state == 0 ) {
+				m_bottle_time = m_bottle_time + TimeSpan(0,1,0,0);
+			} else {
+				m_bottle_time = m_bottle_time + TimeSpan(0,0,1,0);
+			}
 		}
 		default: {
 			Serial.println("Unsupported BottleItem for up in newBottleView");
@@ -724,12 +721,12 @@ void Interface::newBottleView()
 			}
 			break;
 		}
-		case bottleTime1: {
-			m_bottle_time = m_bottle_time - TimeSpan(0,1,0,0);
-			break;
-		}
-		case bottleTime2: {
-			m_bottle_time = m_bottle_time - TimeSpan(0,0,1,0);
+		case bottleTime: {
+			if ( m_set_time_state == 0 ) {
+				m_bottle_time = m_bottle_time - TimeSpan(0,1,0,0);
+			} else {
+				m_bottle_time = m_bottle_time - TimeSpan(0,0,1,0);
+			}
 			break;
 		}
 		default: {
@@ -796,10 +793,86 @@ void Interface::historyView()
 	bottleView(m_displayed_bottle);
 }
 
+#ifndef CUSTOM_SHIELD
 /* Allows the user to insert a reference time.*/
 void Interface::setTimeView()
 {
+	if ( m_update_display ) {
+		m_update_display = false;
+		lcd.clear();
+		
+		lcd.print("Set time:");
+		if ( m_bottle_time.hour() < 10 ) {
+			lcd.setCursor(10,0);
+			lcd.print("0");
+			lcd.setCursor(11,0);
+		} else {
+			lcd.setCursor(10,0);
+		}
+		lcd.print(m_bottle_time.hour());
+		lcd.setCursor(8,0);
+		lcd.print(":");
+		if ( m_bottle_time.minute() < 10 ) {
+			lcd.setCursor(9,0);
+			lcd.print("0");
+			lcd.setCursor(10,0);
+		} else {
+			lcd.setCursor(9,0);
+		}
+		lcd.print(m_bottle_time.minute());
+
+		if ( m_set_time_state == 0 ) {
+			lcd.setCursor(6,1);
+			lcd.print("--");
+		} else {
+			lcd.setCursor(9,1);
+			lcd.print("--");
+		}
+	}
+		
+	int lcd_key = readButtons();
+
+	switch ( lcd_key ) {
+	case buttonRight: {
+		if ( m_set_time_state == 0 ) {
+			m_set_time_state = 1;
+		} else {
+			restoreDefaults();
+			m_current_view = viewHistory;
+		}
+		m_update_display = true;
+		break;
+	}
+	case buttonLeft: {
+		if ( m_set_time_state == 0 ) {
+			restoreDefaults();
+			// Abort and return to current bottle view.
+			m_current_view = viewHistory;
+		} else {
+			m_set_time_state = 0;
+		}
+		m_update_display = true;
+		break;
+	}
+	case buttonUp: {
+		if ( m_set_time_state == 0 ) {
+			m_custom_time = m_custom_time + TimeSpan(0,1,0,0);
+		} else {
+			m_custom_time = m_custom_time + TimeSpan(0,0,1,0);
+		}
+		break;
+	}
+	case buttonDown: {
+		if ( m_set_time_state == 0 ) {
+			m_custom_time = m_custom_time - TimeSpan(0,1,0,0);
+		} else {
+			m_custom_time = m_custom_time - TimeSpan(0,0,1,0);
+		}
+	}
+	}
+
 }
+#endif
 
 /* Displays a particular view. */
 void Interface::view()
@@ -822,10 +895,12 @@ void Interface::view()
 			consumptionView();
 			break;
 		}
+#ifndef CUSTOM_SHIELD
 		case viewTime: {
 			setTimeView();
 			break;
 		}
+#endif
 		default: {
 			historyView();
 			break;
