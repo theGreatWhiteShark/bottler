@@ -1,5 +1,4 @@
 //Sample using LiquidCrystal library
-#include <Wire.h>
 #include <LiquidCrystal.h>
 #include <RTClib.h>
 
@@ -31,7 +30,7 @@ DateTime nowCustom() {
 // #ifdef CUSTOM_SHIELD
 // 	return rtc.now();
 // #else
-	return DateTime(uint32_t(millis()));
+	return DateTime(uint32_t(millis()/1000));
 // #endif
 }
 	
@@ -206,7 +205,7 @@ private:
 	void consumptionView();
 	void setTimeView();
 
-	void toggleDisplay();
+	void toggleDisplay( bool on );
 
 	int readButtons() const;
 	// Resets the global variables to their initial state (done before entering the view).
@@ -260,6 +259,7 @@ Interface::Interface() : m_current_view( viewHistory )
 					   , m_displayed_bottle( 0 )
 					   , m_display_active( true )
 					   , m_update_display( true )
+					   , m_last_user_interaction( nowCustom() )
 					   , m_crate{}{
 }
 
@@ -285,7 +285,9 @@ int Interface::readButtons() const {
 #ifdef CUSTOM_SHIELD
 	if ( adc_key_in < 500 ) {
 		return buttonNone;
-	} else if ( adc_key_in < 720 ) {
+	}
+	m_last_user_interaction = nowCustom();
+	if ( adc_key_in < 720 ) {
 		return buttonSelect;
 	} else if ( adc_key_in < 900 ) {
 		return buttonLeft;
@@ -297,6 +299,7 @@ int Interface::readButtons() const {
 		return buttonRight;
 	}
 #else
+	m_last_user_interaction = nowCustom();
 	if ( adc_key_in < 50 ) {
 		return buttonRight;
 	} else if ( adc_key_in < 195 ) {
@@ -313,14 +316,15 @@ int Interface::readButtons() const {
 	return buttonNone;
 }
 
-void Interface::toggleDisplay() {
-	if ( m_display_active ) {
-		if ( nowCustom() - TimeSpan(DISPLAY_ACTIVE_DURATION) >
+void Interface::toggleDisplay( bool on ) {
+	if ( !on && m_display_active ) {
+		if ( nowCustom() - TimeSpan(0, 0, 0, DISPLAY_ACTIVE_DURATION) >
 			 m_last_user_interaction ) {
 			lcd.noDisplay();
+			delay(1000);
 			m_display_active = false;
 		}
-	} else {
+	} else if ( on ) {
 		lcd.display();
 		m_display_active = true;
 		m_update_display = true;
@@ -773,12 +777,12 @@ void Interface::view()
 				m_update_display = true;
 			}
 		} else {
-			toggleDisplay();
+			toggleDisplay( true );
 		}
 	} else {
 		// If no button was hit we will check if it is already time to
 		// automatically turn off the display.
-		toggleDisplay();
+		toggleDisplay( false );
 	}
 }
 
@@ -807,16 +811,6 @@ void setup(){
 	Serial.begin(9600);
 }
 
-void loop()
-{
+void loop() {
 	app.view();
 }
-
-
-
-
-
-
-
-
-
