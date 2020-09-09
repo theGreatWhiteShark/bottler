@@ -6,7 +6,7 @@ LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 RTC_DS1307 rtc;
 
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
-#define DELAY_TIME 100
+#define DELAY_TIME 150
 
 #define DEFAULT_VOLUME 140
 #define DEFAULT_SPOONS 3.5
@@ -16,8 +16,9 @@ RTC_DS1307 rtc;
 // for the Arduino Mega)
 #define MAX_BOTTLES 50
 
-// Amount of seconds the display stays on until it powers off automatically.
-#define DISPLAY_ACTIVE_DURATION 30
+// Amount of seconds the display stays on until it powers off
+// automatically. Between 1 and 60.
+#define DISPLAY_ACTIVE_DURATION 60
 
 // Specifies whether the custom shield or - if not defined - the DF
 // Robot LCD Keypad Shield was used.
@@ -151,7 +152,7 @@ void Crate::printContent() const {
 			Serial.print(" ml\t");
 			Serial.print(m_bottles[ii].remaining);
 			Serial.print(" ml\t");
-			Serial.println(m_bottles[ii].time.toString("hh:mm"));
+			Serial.println(m_bottles[ii].time.timestamp());
 		}
 	}
 }
@@ -320,8 +321,7 @@ void Interface::toggleDisplay( bool on ) {
 	if ( !on && m_display_active ) {
 		if ( nowCustom() - TimeSpan(0, 0, 0, DISPLAY_ACTIVE_DURATION) >
 			 m_last_user_interaction ) {
-			lcd.noDisplay();
-			delay(1000);
+			// lcd.noDisplay();
 			m_display_active = false;
 		}
 	} else if ( on ) {
@@ -401,14 +401,24 @@ void Interface::bottleView(int index)
 			lcd.print("ml");
 	  
 
-			lcd.setCursor(3, 1);
-			lcd.print(current_bottle.time.toString("hh:mm"));
-			// lcd.setCursor(5,1);
-			// lcd.print(":");
-			// lcd.setCursor(6,1);
-			// lcd.print(current_bottle.time);
-	  
-	
+			if ( current_bottle.time.hour() < 10 ) {
+				lcd.setCursor(3,1);
+				lcd.print("0");
+				lcd.setCursor(4,1);
+			} else {
+				lcd.setCursor(3,1);
+			}
+			lcd.print(current_bottle.time.hour());
+			lcd.setCursor(5,1);
+			lcd.print(":");
+			if ( current_bottle.time.minute() < 10 ) {
+				lcd.setCursor(6,1);
+				lcd.print("0");
+				lcd.setCursor(7,1);
+			} else {
+				lcd.setCursor(6,1);
+			}
+			lcd.print(current_bottle.time.minute());
 			break;
 		}
 		}
@@ -582,8 +592,24 @@ void Interface::newBottleView()
 		}
 		case bottleTime: {
 			lcd.print("Time:");
-			lcd.setCursor(6,0);
-			lcd.print( m_bottle_time.toString("hh:mm" ));
+			if ( m_bottle_time.hour() < 10 ) {
+				lcd.setCursor(6,0);
+				lcd.print("0");
+				lcd.setCursor(7,0);
+			} else {
+				lcd.setCursor(6,0);
+			}
+			lcd.print(m_bottle_time.hour());
+			lcd.setCursor(8,0);
+			lcd.print(":");
+			if ( m_bottle_time.minute() < 10 ) {
+				lcd.setCursor(9,0);
+				lcd.print("0");
+				lcd.setCursor(10,0);
+			} else {
+				lcd.setCursor(9,0);
+			}
+			lcd.print(m_bottle_time.minute());
 			break;
 		}
 		default: {
