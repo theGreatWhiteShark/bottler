@@ -38,8 +38,9 @@ DateTime nowCustom() {
 
 enum Button { buttonRight, buttonUp, buttonDown, buttonLeft,
 	buttonSelect, buttonNone };
+
 enum Views { viewHistory, viewMenu, viewNewBottle, viewConsumption, viewTime, viewNone };
-enum BottleItem { bottleSpoons, bottleVolume, bottleRemaining, bottleTime, bottleNone };
+enum BottleItem { bottleSpoons, bottleVolume, bottleRemaining, bottleTime1, bottleTime2, bottleNone };
 
 
 struct Bottle {
@@ -590,7 +591,7 @@ void Interface::newBottleView()
 			lcd.print("ml");
 			break;
 		}
-		case bottleTime: {
+		case bottleTime1: {
 			lcd.print("Time:");
 			if ( m_bottle_time.hour() < 10 ) {
 				lcd.setCursor(6,0);
@@ -610,6 +611,34 @@ void Interface::newBottleView()
 				lcd.setCursor(9,0);
 			}
 			lcd.print(m_bottle_time.minute());
+
+			lcd.setCursor(6,1);
+			lcd.print("--");
+			break;
+		}
+		case bottleTime2: {
+			lcd.print("Time:");
+			if ( m_bottle_time.hour() < 10 ) {
+				lcd.setCursor(6,0);
+				lcd.print("0");
+				lcd.setCursor(7,0);
+			} else {
+				lcd.setCursor(6,0);
+			}
+			lcd.print(m_bottle_time.hour());
+			lcd.setCursor(8,0);
+			lcd.print(":");
+			if ( m_bottle_time.minute() < 10 ) {
+				lcd.setCursor(9,0);
+				lcd.print("0");
+				lcd.setCursor(10,0);
+			} else {
+				lcd.setCursor(9,0);
+			}
+			lcd.print(m_bottle_time.minute());
+
+			lcd.setCursor(9,1);
+			lcd.print("--");
 			break;
 		}
 		default: {
@@ -622,10 +651,12 @@ void Interface::newBottleView()
 
 	switch ( lcd_key ) {
 	case buttonRight: {
-		if ( m_bottle_option == 0 ) {
+		if ( m_bottle_option == bottleSpoons ) {
 			m_bottle_option = bottleVolume;
-		} else if ( m_bottle_option == 1 ) {
-			m_bottle_option = bottleTime;
+		} else if ( m_bottle_option == bottleVolume ) {
+			m_bottle_option = bottleTime1;
+		} else if ( m_bottle_option == bottleTime1 ) {
+			m_bottle_option = bottleTime2;
 		} else {
 			m_crate.addBottle( m_bottle_spoons,
 							   m_bottle_volume,
@@ -663,7 +694,11 @@ void Interface::newBottleView()
 			}
 			break;
 		}
-		case bottleTime: {
+		case bottleTime1: {
+			m_bottle_time = m_bottle_time + TimeSpan(0,1,0,0);
+			break;
+		}
+		case bottleTime2: {
 			m_bottle_time = m_bottle_time + TimeSpan(0,0,1,0);
 			break;
 		}
@@ -689,7 +724,11 @@ void Interface::newBottleView()
 			}
 			break;
 		}
-		case bottleTime: {
+		case bottleTime1: {
+			m_bottle_time = m_bottle_time - TimeSpan(0,1,0,0);
+			break;
+		}
+		case bottleTime2: {
 			m_bottle_time = m_bottle_time - TimeSpan(0,0,1,0);
 			break;
 		}
