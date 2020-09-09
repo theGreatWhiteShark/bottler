@@ -509,6 +509,7 @@ void Interface::menuView()
 		lcd.setCursor(0,0);
 		switch ( m_menu_item ) {
 
+#ifndef CUSTOM_SHIELD
 		case viewNewBottle: {
 			lcd.print("> New bottle");
 			lcd.setCursor(2,1);
@@ -527,7 +528,29 @@ void Interface::menuView()
 			lcd.print("New bottle");
 			break;
 		}
+		default: {
+			Serial.println("Unknown m_menu_item in menuView");
 		}
+		}
+#else
+		case viewNewBottle: {
+			lcd.print("> New bottle");
+			lcd.setCursor(2,1);
+			lcd.print("Total consumption");
+			break;
+		}
+		case viewConsumption: {
+			lcd.setCursor(2,0);
+			lcd.print("New bottle");
+			lcd.setCursor(0,1);
+			lcd.print("> Total consumption");
+			break;
+		}
+		default: {
+			Serial.println("Unknown m_menu_item in menuView");
+		}
+		}
+#endif
 	}
 
 	int lcd_key = readButtons();
@@ -551,6 +574,7 @@ void Interface::menuView()
 		break;
 	}
 	case buttonUp: {
+#ifndef CUSTOM_SHIELD
 		if ( m_menu_item == viewNewBottle ) {
 			m_menu_item = viewTime;
 		} else if ( m_menu_item == viewConsumption ) {
@@ -560,10 +584,20 @@ void Interface::menuView()
 		} else {
 			Serial.println("Unsupported menu_item in menuView");
 		}
+#else
+		if ( m_menu_item == viewNewBottle ) {
+			m_menu_item = viewConsumption;
+		} else if ( m_menu_item == viewConsumption ) {
+			m_menu_item = viewNewBottle;
+		} else {
+			Serial.println("Unsupported menu_item in menuView");
+		}
+#endif
 		m_update_display = true;
 		break;
 	}
 	case buttonDown: {
+#ifndef CUSTOM_SHIELD
 		if ( m_menu_item == viewNewBottle ) {
 			m_menu_item = viewConsumption;
 		} else if ( m_menu_item == viewConsumption ) {
@@ -573,6 +607,15 @@ void Interface::menuView()
 		} else {
 			Serial.println("Unsupported menu_item in menuView");
 		}
+#else
+		if ( m_menu_item == viewNewBottle ) {
+			m_menu_item = viewConsumption;
+		} else if ( m_menu_item == viewConsumption ) {
+			m_menu_item = viewNewBottle;
+		} else {
+			Serial.println("Unsupported menu_item in menuView");
+		}
+#endif
 		m_update_display = true;
 		break;
 	}
