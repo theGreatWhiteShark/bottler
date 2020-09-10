@@ -347,8 +347,6 @@ void Interface::toggleDisplay( bool on ) {
 // Resets the global variables to their initial state (done before entering the view).
 void Interface::restoreDefaults()
 {
-	m_menu_item = viewNewBottle;
-
 	m_bottle_option = bottleSpoons;
 	m_bottle_spoons = DEFAULT_SPOONS;
 	m_bottle_volume = DEFAULT_VOLUME;
@@ -803,20 +801,22 @@ void Interface::consumptionView()
 
 		lcd.print("Volume:");
 		if ( consumed_volume > 1000 ) {
-			lcd.setCursor(1,9);
+			lcd.setCursor(9,0);
 		} else if ( consumed_volume > 100  ) {
-			lcd.setCursor(1,10);
+			lcd.setCursor(10,0);
 		} else {
-			lcd.setCursor(1,11);
+			lcd.setCursor(11,0);
 		}
 		lcd.print(consumed_volume);
-		lcd.setCursor(1, 13);
+		lcd.setCursor(13,0);
 		lcd.print("ml");
 
-		lcd.setCursor(2,0);
+		lcd.setCursor(0,1);
 		lcd.print("Powder:");
-		lcd.setCursor(2,7);
+		lcd.setCursor(8,1);
 		lcd.print(consumed_powder);
+		lcd.setCursor(13,1);
+		lcd.print("g");
 	}
 
 	int lcd_key = readButtons();
@@ -957,6 +957,7 @@ void Interface::view()
 		if ( m_display_active ) {
 			if ( lcd_key == buttonSelect ) {
 				m_current_view = viewMenu;
+				m_menu_item = viewNewBottle;
 				m_update_display = true;
 			}
 		} else {
