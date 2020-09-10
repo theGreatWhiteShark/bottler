@@ -8,8 +8,9 @@ RTC_DS1307 rtc;
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
 #define DELAY_TIME 90
 
-#define DEFAULT_VOLUME 140
-#define DEFAULT_SPOONS 3.5
+#define DEFAULT_VOLUME 150
+#define DEFAULT_REMAINING 40
+#define DEFAULT_SPOONS 5
 
 // Just having 50 bottles will hopefully do the job. Having 256 would
 // be too much for the Arduino Uno to handle (although it's no problem
@@ -249,6 +250,7 @@ private:
 	int m_bottle_option;
 	float m_bottle_spoons;
 	int m_bottle_volume;
+	int m_bottle_remaining;
 	DateTime m_bottle_time;
 
 #ifndef CUSTOM_SHIELD
@@ -350,6 +352,7 @@ void Interface::restoreDefaults()
 	m_bottle_option = bottleSpoons;
 	m_bottle_spoons = DEFAULT_SPOONS;
 	m_bottle_volume = DEFAULT_VOLUME;
+	m_bottle_remaining = DEFAULT_REMAINING;
 	m_bottle_time = nowCustom();
 
 	m_displayed_bottle = m_crate.getCurrentBottleIdx();
@@ -373,15 +376,16 @@ void Interface::bottleView(int index)
 		case bottleRemaining: {
 			// Specify what's left of the bottle.
 			lcd.print("Remaining:");
-			if ( m_bottle_volume >= 100 ) {
+			if ( m_bottle_remaining >= 100 ) {
 				lcd.setCursor(0,1);
 			}
-			else {
+			else if ( m_bottle_remaining >= 10 ) {
 				lcd.setCursor(1,1);
+			} else {
+				lcd.setCursor(2,1);
 			}
 	
-			lcd.print(min(m_bottle_volume,
-						  current_bottle.volume));
+			lcd.print(m_bottle_remaining);
 			lcd.setCursor(3,1);
 			lcd.print("ml");
 			break;
@@ -394,10 +398,12 @@ void Interface::bottleView(int index)
 			lcd.setCursor( 0, 0 );
 			lcd.print( current_bottle.spoons );
 
-			if ( current_bottle.remaining < 100 ) {
+			if ( current_bottle.remaining > 100 ) {
+				lcd.setCursor( 7, 0 );
+			} else if ( current_bottle.remaining >= 10 ) {
 				lcd.setCursor( 8, 0 );
 			} else {
-				lcd.setCursor( 7, 0 );
+				lcd.setCursor(9,0);
 			}
 			lcd.print(current_bottle.remaining);
 	
@@ -444,7 +450,7 @@ void Interface::bottleView(int index)
 		if ( m_bottle_option != bottleRemaining ) {
 			m_bottle_option = bottleRemaining;
 		} else {
-			current_bottle.remaining = m_bottle_volume;
+			current_bottle.remaining = m_bottle_remaining;
 			m_crate.setBottle( index, current_bottle );
 			m_bottle_option = bottleSpoons;
 		}
@@ -471,8 +477,8 @@ void Interface::bottleView(int index)
 				m_displayed_bottle = 0;
 			}
 		} else {
-			if ( m_bottle_volume < current_bottle.volume ) {
-				m_bottle_volume = m_bottle_volume + 10;
+			if ( m_bottle_remaining < current_bottle.volume ) {
+				m_bottle_remaining += 10;
 			}
 		}
 		m_update_display = true;
@@ -487,8 +493,8 @@ void Interface::bottleView(int index)
 			}
 		} else {
 			// There is a maximum value of a bottle of 150 ml.
-			if ( m_bottle_volume > 0 ) {
-				m_bottle_volume = m_bottle_volume - 10;
+			if ( m_bottle_remaining > 0 ) {
+				m_bottle_remaining -= 10;
 			}
 		}
 		m_update_display = true;
