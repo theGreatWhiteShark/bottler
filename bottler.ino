@@ -23,17 +23,24 @@ RTC_DS1307 rtc;
 
 // Specifies whether the custom shield or - if not defined - the DF
 // Robot LCD Keypad Shield was used.
-#define CUSTOM_SHIELD
+// #define CUSTOM_SHIELD
+
+#ifndef CUSTOM_SHIELD
+// Intermediate variable for adjusting the time if no RTC chip is
+// present.
+DateTime custom_time = DateTime(2020, 9, 9, 0, 0, 0);
+#endif
+
 
 // In case the DF Robot Shield (or just a LCD display with buttons but
 // no RTC is used, we can not rely on it's now() function and have to
 // use our own.
 DateTime nowCustom() {
-// #ifdef CUSTOM_SHIELD
-// 	return rtc.now();
-// #else
+#ifdef CUSTOM_SHIELD
 	return DateTime(uint32_t(millis()/1000));
-// #endif
+#else
+	return custom_time + TimeSpan(int32_t(millis()/1000));
+#endif
 }
 	
 
@@ -252,12 +259,6 @@ private:
 	int m_bottle_volume;
 	int m_bottle_remaining;
 	DateTime m_bottle_time;
-
-#ifndef CUSTOM_SHIELD
-	// Intermediate variable for adjusting the time if no RTC chip is
-	// present.
-	DateTime m_custom_time;
-#endif
 
 	// 0 - setting the hours and 1 - setting the minutes for both the
 	// custom time and a new bottle.
@@ -850,25 +851,25 @@ void Interface::setTimeView()
 		m_update_display = false;
 		lcd.clear();
 		
-		lcd.print("Set time:");
-		if ( m_bottle_time.hour() < 10 ) {
-			lcd.setCursor(10,0);
+		lcd.print("Time:");
+		if ( custom_time.hour() < 10 ) {
+			lcd.setCursor(6,0);
 			lcd.print("0");
-			lcd.setCursor(11,0);
+			lcd.setCursor(7,0);
 		} else {
-			lcd.setCursor(10,0);
+			lcd.setCursor(6,0);
 		}
-		lcd.print(m_bottle_time.hour());
+		lcd.print(custom_time.hour());
 		lcd.setCursor(8,0);
 		lcd.print(":");
-		if ( m_bottle_time.minute() < 10 ) {
+		if ( custom_time.minute() < 10 ) {
 			lcd.setCursor(9,0);
 			lcd.print("0");
 			lcd.setCursor(10,0);
 		} else {
 			lcd.setCursor(9,0);
 		}
-		lcd.print(m_bottle_time.minute());
+		lcd.print(custom_time.minute());
 
 		if ( m_set_time_state == 0 ) {
 			lcd.setCursor(6,1);
@@ -905,18 +906,21 @@ void Interface::setTimeView()
 	}
 	case buttonUp: {
 		if ( m_set_time_state == 0 ) {
-			m_custom_time = m_custom_time + TimeSpan(0,1,0,0);
+			custom_time = custom_time + TimeSpan(0,1,0,0);
 		} else {
-			m_custom_time = m_custom_time + TimeSpan(0,0,1,0);
+			custom_time = custom_time + TimeSpan(0,0,1,0);
 		}
+		m_update_display = true;
 		break;
 	}
 	case buttonDown: {
 		if ( m_set_time_state == 0 ) {
-			m_custom_time = m_custom_time - TimeSpan(0,1,0,0);
+			custom_time = custom_time - TimeSpan(0,1,0,0);
 		} else {
-			m_custom_time = m_custom_time - TimeSpan(0,0,1,0);
+			custom_time = custom_time - TimeSpan(0,0,1,0);
 		}
+		m_update_display = true;
+		break;
 	}
 	}
 
