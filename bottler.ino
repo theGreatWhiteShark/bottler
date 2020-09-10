@@ -8,6 +8,10 @@ RTC_DS1307 rtc;
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
 #define DELAY_TIME 90
 
+// Last X hours to take into account when calculating the total
+// consumption.
+#define CONSUMPTION_TIME_SPAN 24
+
 #define DEFAULT_VOLUME 150
 #define DEFAULT_REMAINING 40
 #define DEFAULT_SPOONS 5
@@ -57,14 +61,15 @@ struct Bottle {
 	int remaining;
 	DateTime time;
 
+	void print() const;
 	// Since the spoons of milk powder themselves contribute to the
 	// total volume, they will be taken into account using this
 	// function.
 	//
 	// According to the instruction on the Aptamil package roughly
 	// three spoons amount to 10ml.
-	int totalVolume() const;
-	int consumedVolume() const;
+	float totalVolume() const;
+	float consumedVolume() const;
 
 	// Consumed volume time `spoons` to only account the milk which
 	// actually got drunken.
@@ -78,16 +83,27 @@ struct Bottle {
 	bool consumedDuringLastXHours(byte hours) const;
 };
 
-int Bottle::totalVolume() const {
-	return static_cast<int>(static_cast<float>(volume) + spoons * 10 / 3);
+void Bottle::print() const {
+	Serial.println("bottle:");
+	Serial.print("\tspoons: ");
+	Serial.println(spoons);
+	Serial.print("\tvolume: ");
+	Serial.println(volume);
+	Serial.print("\tremaining: ");
+	Serial.println(remaining);
+	Serial.print("\ttime: ");
+	Serial.println(time.timestamp());
 }
 
-int Bottle::consumedVolume() const {
+float Bottle::totalVolume() const {
+	return static_cast<float>(volume) + spoons * 10 / 3;
+}
+
+float Bottle::consumedVolume() const {
 	return totalVolume() - remaining;
 }
 float Bottle::consumedPowder() const {
-	return static_cast<float>(consumedVolume()) /
-		static_cast<float>(totalVolume()) * spoons * 4.6;
+	return consumedVolume() / totalVolume() * spoons * 4.6;
 }
 
 bool Bottle::consumedDuringLastXHours(byte hours) const {
@@ -183,7 +199,7 @@ void Crate::addBottle(float spoons, int volume, DateTime time)
 
 void Crate::totalConsumption(byte since, int *volume, float *powder) const {
 
-	int consumed_volume = 0;
+	float consumed_volume = 0;
 	float consumed_powder = 0;
 	
 	// Get the indices of all bottles of the last `since` hours.
@@ -191,6 +207,7 @@ void Crate::totalConsumption(byte since, int *volume, float *powder) const {
 		if ( m_bottles[ii].consumedDuringLastXHours(since) ) {
 			consumed_volume += m_bottles[ii].consumedVolume();
 			consumed_powder += m_bottles[ii].consumedPowder();
+			m_bottles[ii].print();
 		}
 	}
 
@@ -372,6 +389,11 @@ void Interface::bottleView(int index)
 		m_update_display = false;
 		lcd.clear();
 		lcd.setCursor(0,0);
+
+		// In case of an empty bottle, make 0 the default instead.
+		if ( current_bottle.volume == 0 ) {
+			m_bottle_remaining = 0;
+		}
 
 		switch ( m_bottle_option ) {
 		case bottleRemaining: {
@@ -792,16 +814,16 @@ void Interface::newBottleView()
 /* Displays the total consumption in volume and number of spoons within the last 24 hours.*/
 void Interface::consumptionView()
 {
-
-	int consumed_volume;
-	float consumed_powder;
-	m_crate.totalConsumption(24, &consumed_volume, &consumed_powder);
 	
 	// Ensure this view is only drawn once (since it's not possible to
 	// change the amount of remaining volume once the user entered
 	// this view).
 	if ( m_update_display ){
 		m_update_display = false;
+
+		int consumed_volume;
+		float consumed_powder;
+		m_crate.totalConsumption(CONSUMPTION_TIME_SPAN, &consumed_volume, &consumed_powder);
 
 		lcd.clear();
 		lcd.setCursor(0,0);
@@ -815,7 +837,7 @@ void Interface::consumptionView()
 			lcd.setCursor(11,0);
 		}
 		lcd.print(consumed_volume);
-		lcd.setCursor(13,0);
+		lcd.setCursor(12,0);
 		lcd.print("ml");
 
 		lcd.setCursor(0,1);
