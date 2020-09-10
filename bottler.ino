@@ -27,7 +27,7 @@ RTC_DS1307 rtc;
 
 // Specifies whether the custom shield or - if not defined - the DF
 // Robot LCD Keypad Shield was used.
-// #define CUSTOM_SHIELD
+#define CUSTOM_SHIELD
 
 #ifndef CUSTOM_SHIELD
 // Intermediate variable for adjusting the time if no RTC chip is
@@ -743,7 +743,7 @@ void Interface::newBottleView()
 			if ( m_set_time_state == 0 ) {
 				m_bottle_option = bottleVolume;
 			} else {
-				m_set_time_state = 1;
+				m_set_time_state = 0;
 			}
 		}
 		m_update_display = true;
@@ -837,7 +837,7 @@ void Interface::consumptionView()
 			lcd.setCursor(11,0);
 		}
 		lcd.print(consumed_volume);
-		lcd.setCursor(12,0);
+		lcd.setCursor(13,0);
 		lcd.print("ml");
 
 		lcd.setCursor(0,1);
