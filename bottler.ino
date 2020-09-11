@@ -41,7 +41,7 @@ DateTime custom_time = DateTime(2020, 9, 9, 0, 0, 0);
 // use our own.
 DateTime nowCustom() {
 #ifdef CUSTOM_SHIELD
-	return DateTime(uint32_t(millis()/1000));
+	return rtc.now();
 #else
 	return custom_time + TimeSpan(int32_t(millis()/1000));
 #endif
@@ -1005,26 +1005,28 @@ void Interface::view()
 Interface app;
 
 void setup(){
+	Serial.begin(9600);
 
-// #ifndef CUSTOM_SHIELD
-	// if ( !rtc.begin() ) {
-	// 	lcd.println("Couldn't find RTC");
-	// 	while (1);
-	// }
+#ifndef CUSTOM_SHIELD
+	if ( !rtc.begin() ) {
+		lcd.println("Couldn't find RTC");
+		Serial.println("Couldn't find RTC");
+		while (1);
+	}
 
-// 	if ( !rtc.isrunning() ) { 
-// 		lcd.print("RTC is NOT running!");
-// 	}
+	if ( !rtc.isrunning() ) { 
+		lcd.print("RTC is NOT running!");
+		Serial.print("RTC is NOT running!");
+	}
 
-// 	// Use the time of the computer uploading this sketch to set the
-// 	// RTC.
-//     rtc.adjust( DateTime(F(__DATE__), F(__TIME__)) );
-// // #endif
+	// Use the time of the computer uploading this sketch to set the
+	// RTC.
+    rtc.adjust( DateTime(F(__DATE__), F(__TIME__)) );
+#endif
   
 	lcd.begin(16, 2);
 	lcd.setCursor(0,0);
 	lcd.print("Bottle-Spass");
-	Serial.begin(9600);
 }
 
 void loop() {
