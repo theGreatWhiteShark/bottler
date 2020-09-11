@@ -34,6 +34,8 @@ LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 // Intermediate variable for adjusting the time if no RTC chip is
 // present.
 DateTime custom_time = DateTime(2020, 9, 9, 0, 0, 0);
+unsigned long m_time_offset = 0;
+
 #endif
 
 // In case the DF Robot Shield (or just a LCD display with buttons but
@@ -43,7 +45,8 @@ DateTime nowCustom() {
 #ifdef USE_RTC
 	return rtc.now();
 #else
-	return custom_time + TimeSpan(int32_t(millis()/1000));
+	return custom_time + TimeSpan(int32_t(millis()/1000)) -
+		TimeSpan(int32_t(m_time_offset/1000));
 #endif
 }
 	
@@ -905,6 +908,7 @@ void Interface::setTimeView()
 		if ( m_set_time_state == 0 ) {
 			m_set_time_state = 1;
 		} else {
+			m_time_offset = millis();
 			restoreDefaults();
 			m_current_view = viewHistory;
 		}
