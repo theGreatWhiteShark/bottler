@@ -41,6 +41,7 @@ DateTime custom_time = DateTime(2020, 9, 9, 0, 0, 0);
 // use our own.
 DateTime nowCustom() {
 #ifdef CUSTOM_SHIELD
+		// return DateTime(2020, 9, 9, 0, 0, 0) + TimeSpan(int32_t(millis()/1000));
 	return rtc.now();
 #else
 	return custom_time + TimeSpan(int32_t(millis()/1000));
@@ -192,9 +193,6 @@ void Crate::addBottle(float spoons, int volume, DateTime time)
 	}
 
 	m_bottles[m_current_bottle_idx] = new_bottle;
-
-	Serial.println("adding a bottle");
-	printContent();
 }
 
 void Crate::totalConsumption(byte since, int *volume, float *powder) const {
@@ -207,7 +205,7 @@ void Crate::totalConsumption(byte since, int *volume, float *powder) const {
 		if ( m_bottles[ii].consumedDuringLastXHours(since) ) {
 			consumed_volume += m_bottles[ii].consumedVolume();
 			consumed_powder += m_bottles[ii].consumedPowder();
-			m_bottles[ii].print();
+			// m_bottles[ii].print();
 		}
 	}
 
@@ -281,7 +279,6 @@ private:
 	// custom time and a new bottle.
 	byte m_set_time_state;
 };
-
 
 Interface::Interface() : m_current_view( viewHistory )
 					   , m_menu_item( viewNewBottle )
