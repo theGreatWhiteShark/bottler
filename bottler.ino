@@ -4,6 +4,8 @@
 RTC_DS1307 rtc;
 
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+// Pin the positive potential of the background light is connected to.
+#define LCD_POWER 3
 
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
 #define DELAY_TIME 90
@@ -353,11 +355,13 @@ void Interface::toggleDisplay( bool on ) {
 	if ( !on && m_display_active ) {
 		if ( nowCustom() - TimeSpan(0, 0, 0, DISPLAY_ACTIVE_DURATION) >
 			 m_last_user_interaction ) {
-			// lcd.noDisplay();
+			lcd.noDisplay();
+			digitalWrite(LCD_POWER, LOW);
 			m_display_active = false;
 		}
 	} else if ( on ) {
 		lcd.display();
+		digitalWrite(LCD_POWER, HIGH);
 		m_display_active = true;
 		m_update_display = true;
 	}
@@ -1006,6 +1010,9 @@ Interface app;
 
 void setup() {
 	Serial.begin(9600);
+
+	pinMode(LCD_POWER, OUTPUT);
+	digitalWrite(LCD_POWER, HIGH);
 
 #ifdef USE_RTC
 	if ( !rtc.begin() ) {
