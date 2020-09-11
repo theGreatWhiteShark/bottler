@@ -1,9 +1,9 @@
 //Sample using LiquidCrystal library
-#include <LiquidCrystal.h>
 #include <RTClib.h>
+#include <LiquidCrystal.h>
+RTC_DS1307 rtc;
 
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
-RTC_DS1307 rtc;
 
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
 #define DELAY_TIME 90
@@ -28,20 +28,19 @@ RTC_DS1307 rtc;
 // Specifies whether the custom shield or - if not defined - the DF
 // Robot LCD Keypad Shield was used.
 #define CUSTOM_SHIELD
+// #define USE_RTC
 
-#ifndef CUSTOM_SHIELD
+#ifndef USE_RTC
 // Intermediate variable for adjusting the time if no RTC chip is
 // present.
 DateTime custom_time = DateTime(2020, 9, 9, 0, 0, 0);
 #endif
 
-
 // In case the DF Robot Shield (or just a LCD display with buttons but
 // no RTC is used, we can not rely on it's now() function and have to
 // use our own.
 DateTime nowCustom() {
-#ifdef CUSTOM_SHIELD
-		// return DateTime(2020, 9, 9, 0, 0, 0) + TimeSpan(int32_t(millis()/1000));
+#ifdef USE_RTC
 	return rtc.now();
 #else
 	return custom_time + TimeSpan(int32_t(millis()/1000));
@@ -228,7 +227,7 @@ private:
 	void menuView();
 	void newBottleView();
 	void consumptionView();
-#ifndef CUSTOM_SHIELD
+#ifndef USE_RTC
 	void setTimeView();
 #endif
 
@@ -533,7 +532,7 @@ void Interface::menuView()
 		lcd.setCursor(0,0);
 		switch ( m_menu_item ) {
 
-#ifndef CUSTOM_SHIELD
+#ifndef USE_RTC
 		case viewNewBottle: {
 			lcd.print("> New bottle");
 			lcd.setCursor(2,1);
@@ -598,7 +597,7 @@ void Interface::menuView()
 		break;
 	}
 	case buttonUp: {
-#ifndef CUSTOM_SHIELD
+#ifndef USE_RTC
 		if ( m_menu_item == viewNewBottle ) {
 			m_menu_item = viewTime;
 		} else if ( m_menu_item == viewConsumption ) {
@@ -621,7 +620,7 @@ void Interface::menuView()
 		break;
 	}
 	case buttonDown: {
-#ifndef CUSTOM_SHIELD
+#ifndef USE_RTC
 		if ( m_menu_item == viewNewBottle ) {
 			m_menu_item = viewConsumption;
 		} else if ( m_menu_item == viewConsumption ) {
@@ -862,7 +861,7 @@ void Interface::historyView()
 	bottleView(m_displayed_bottle);
 }
 
-#ifndef CUSTOM_SHIELD
+#ifndef USE_RTC
 /* Allows the user to insert a reference time.*/
 void Interface::setTimeView()
 {
@@ -967,7 +966,7 @@ void Interface::view()
 			consumptionView();
 			break;
 		}
-#ifndef CUSTOM_SHIELD
+#ifndef USE_RTC
 		case viewTime: {
 			setTimeView();
 			break;
@@ -1001,30 +1000,26 @@ void Interface::view()
 
 Interface app;
 
-void setup(){
+void setup() {
 	Serial.begin(9600);
 
-#ifndef CUSTOM_SHIELD
+#ifdef USE_RTC
 	if ( !rtc.begin() ) {
-		lcd.println("Couldn't find RTC");
 		Serial.println("Couldn't find RTC");
-		while (1);
+		while ( true );
 	}
 
-	if ( !rtc.isrunning() ) { 
-		lcd.print("RTC is NOT running!");
+	if ( !rtc.isrunning() ) {
 		Serial.print("RTC is NOT running!");
 	}
-
-	// Use the time of the computer uploading this sketch to set the
-	// RTC.
-    rtc.adjust( DateTime(F(__DATE__), F(__TIME__)) );
+	
+	rtc.adjust( DateTime(F(__DATE__), F(__TIME__)) );
 #endif
-  
+
 	lcd.begin(16, 2);
-	lcd.setCursor(0,0);
-	lcd.print("Bottle-Spass");
+	
 }
+
 
 void loop() {
 	app.view();
