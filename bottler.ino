@@ -1,10 +1,15 @@
 //Sample using LiquidCrystal library
 #include <RTClib.h>
 #include <LiquidCrystal.h>
-RTC_DS1307 rtc;
 
+RTC_DS1307 rtc;
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
-// Pin the positive potential of the background light is connected to.
+
+//////////////////////////////////////////////////////////////////////
+// Board-specific variables
+
+// Pin the positive potential of the background light is connected
+// to. Only used if CUSTOM_SHIELD is defined.
 #define LCD_POWER 3
 
 /* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
@@ -356,12 +361,16 @@ void Interface::toggleDisplay( bool on ) {
 		if ( nowCustom() - TimeSpan(0, 0, 0, DISPLAY_ACTIVE_DURATION) >
 			 m_last_user_interaction ) {
 			lcd.noDisplay();
+#ifdef CUSTOM_SHIELD
 			digitalWrite(LCD_POWER, LOW);
+#endif
 			m_display_active = false;
 		}
 	} else if ( on ) {
 		lcd.display();
+#ifdef CUSTOM_SHIELD
 		digitalWrite(LCD_POWER, HIGH);
+#endif
 		m_display_active = true;
 		m_update_display = true;
 	}
@@ -1010,9 +1019,11 @@ Interface app;
 
 void setup() {
 	Serial.begin(9600);
-
+	
+#ifdef CUSTOM_SHIELD
 	pinMode(LCD_POWER, OUTPUT);
 	digitalWrite(LCD_POWER, HIGH);
+#endif
 
 #ifdef USE_RTC
 	if ( !rtc.begin() ) {
