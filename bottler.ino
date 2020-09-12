@@ -2,40 +2,50 @@
 #include <RTClib.h>
 #include <LiquidCrystal.h>
 
-RTC_DS1307 rtc;
-LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
-
 //////////////////////////////////////////////////////////////////////
-// Board-specific variables
+// Board-specific constants
+
+// Specifies whether the custom shield or - if not defined - the DF
+// Robot LCD Keypad Shield was used.
+#define CUSTOM_SHIELD
 
 // Pin the positive potential of the background light is connected
 // to. Only used if CUSTOM_SHIELD is defined.
 #define LCD_POWER 3
 
-/* Amount of microseconds the program will pause after detecting a button event. This is necessary since several button events per second would be detected otherwise.*/
+// Whether or not a DS1307 chip is present on the custom shield
+// #define USE_RTC
+
+//////////////////////////////////////////////////////////////////////
+// General constants
+
+// Amount of microseconds the program will pause after detecting a
+// button event. This is necessary since several button events per
+// second would be detected otherwise.
 #define DELAY_TIME 90
 
 // Last X hours to take into account when calculating the total
 // consumption.
 #define CONSUMPTION_TIME_SPAN 24
 
+// Default values to display in the newBottleView().
 #define DEFAULT_VOLUME 150
 #define DEFAULT_REMAINING 40
 #define DEFAULT_SPOONS 5
 
-// Just having 50 bottles will hopefully do the job. Having 256 would
-// be too much for the Arduino Uno to handle (although it's no problem
-// for the Arduino Mega)
+// The (MAX_BOTTLES + 1)-th bottle will overwrite the first one.
 #define MAX_BOTTLES 50
 
 // Amount of seconds the display stays on until it powers off
 // automatically. Between 1 and 60.
 #define DISPLAY_ACTIVE_DURATION 60
 
-// Specifies whether the custom shield or - if not defined - the DF
-// Robot LCD Keypad Shield was used.
-#define CUSTOM_SHIELD
-// #define USE_RTC
+//////////////////////////////////////////////////////////////////////
+// Global variables, functions, and classes.
+
+
+RTC_DS1307 rtc;
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 
 #ifndef USE_RTC
 // Intermediate variable for adjusting the time if no RTC chip is
@@ -57,10 +67,8 @@ DateTime nowCustom() {
 #endif
 }
 	
-
 enum Button { buttonRight, buttonUp, buttonDown, buttonLeft,
 	buttonSelect, buttonNone };
-
 enum Views { viewHistory, viewMenu, viewNewBottle, viewConsumption, viewTime, viewNone };
 enum BottleItem { bottleSpoons, bottleVolume, bottleRemaining, bottleTime, bottleNone };
 
@@ -76,8 +84,8 @@ struct Bottle {
 	// total volume, they will be taken into account using this
 	// function.
 	//
-	// According to the instruction on the Aptamil package roughly
-	// three spoons amount to 10ml.
+	// According to the instruction on the Aptamil package three
+	// spoons amount to 10ml.
 	float totalVolume() const;
 	float consumedVolume() const;
 
@@ -137,11 +145,11 @@ public:
 	void setBottle(int idx, Bottle b);
 
 	bool isBottleUndefined(int idx) const;
-	/* Adds a new bottle to the global bottles array and increments
-	   current_bottle. This array will be filled in a cyclic fashion while
-	   overwriting the oldest entry.
-
-	   Upon adding a bottle is considered full.*/
+	// Adds a new bottle to the global bottles array and increments
+	// current_bottle. This array will be filled in a cyclic fashion
+	// while overwriting the oldest entry.
+	//
+	// Upon adding a bottle is considered full.
 	void addBottle(float spoons, int volume, DateTime time);
 
 	void printContent() const;
@@ -209,12 +217,10 @@ void Crate::totalConsumption(byte since, int *volume, float *powder) const {
 	float consumed_volume = 0;
 	float consumed_powder = 0;
 	
-	// Get the indices of all bottles of the last `since` hours.
 	for ( int ii = 0; ii < MAX_BOTTLES; ii++ ) {
 		if ( m_bottles[ii].consumedDuringLastXHours(since) ) {
 			consumed_volume += m_bottles[ii].consumedVolume();
 			consumed_powder += m_bottles[ii].consumedPowder();
-			// m_bottles[ii].print();
 		}
 	}
 
@@ -244,7 +250,8 @@ private:
 	void toggleDisplay( bool on );
 
 	int readButtons() const;
-	// Resets the global variables to their initial state (done before entering the view).
+	// Resets the global variables to their initial state (done before
+	// entering the view).
 	void restoreDefaults();
 
 	Crate m_crate;
@@ -254,30 +261,15 @@ private:
 	// off after `DISPLAY_ACTIVE_DURATION` without no user input
 	// automatically.
 	bool m_display_active;
-	// Timestamp of the last user interaction.
 	DateTime m_last_user_interaction;
 
 	int m_current_view;
 	
-	// Specifies which bottle in bottles is the most recent one.
+	// Specifies which bottle in m_bottles is the most recent one.
 	int m_displayed_bottle;
 
-	// Whether to redraw the current view.
 	bool m_update_display;
-	
-	// Global constants used within the functions.
-
-	// Additional constant for browsing the different menu options.
-	// 2 - new bottle
-	// 3 - total consumption
-	// 4 - set time
 	int m_menu_item;
-
-	// One after another the
-	// 0 - amount of spoons
-	// 1 - volume
-	// 2 - time of creation will be inserted.
-	// The following variable will keep track of which is the current one.
 	int m_bottle_option;
 	float m_bottle_spoons;
 	int m_bottle_volume;
@@ -307,11 +299,7 @@ Interface::~Interface(){
 }
 
 int Interface::readButtons() const {
-	int adc_key_in = analogRead(0);      // read the value from the sensor
-
-	// my buttons when read are centered at these values: 0, 144, 329, 504, 741
-	// we add approx 50 to those values and check to see if we are
-	// close
+	int adc_key_in = analogRead(0);
 
 #ifndef CUSTOM_SHIELD
 	if ( adc_key_in > 790 ) {
@@ -319,7 +307,6 @@ int Interface::readButtons() const {
 	}
 #endif
 	
-	// We make this the 1st option for speed reasons since it will be the most likely result
 	delay(DELAY_TIME);
 
 #ifdef CUSTOM_SHIELD
@@ -376,7 +363,6 @@ void Interface::toggleDisplay( bool on ) {
 	}
 }
 
-// Resets the global variables to their initial state (done before entering the view).
 void Interface::restoreDefaults()
 {
 	m_bottle_option = bottleSpoons;
@@ -390,9 +376,6 @@ void Interface::restoreDefaults()
 	m_set_time_state = 0;
 }
 
-
-/* General view displaying a single bottle (determined by `index`
-   within the array `bottles`. */
 void Interface::bottleView(int index)
 {
 	Bottle current_bottle = m_crate.getBottle( index );
@@ -409,7 +392,6 @@ void Interface::bottleView(int index)
 
 		switch ( m_bottle_option ) {
 		case bottleRemaining: {
-			// Specify what's left of the bottle.
 			lcd.print("Remaining:");
 			if ( m_bottle_remaining >= 100 ) {
 				lcd.setCursor(0,1);
@@ -427,9 +409,6 @@ void Interface::bottleView(int index)
 		}
 
 		default: {
-			// Default view showing the details of the particular
-			// bottle.
-      
 			lcd.setCursor( 0, 0 );
 			lcd.print( current_bottle.spoons );
 
@@ -527,7 +506,6 @@ void Interface::bottleView(int index)
 				m_displayed_bottle = MAX_BOTTLES - 1;
 			}
 		} else {
-			// There is a maximum value of a bottle of 150 ml.
 			if ( m_bottle_remaining > 0 ) {
 				m_bottle_remaining -= 10;
 			}
@@ -538,7 +516,6 @@ void Interface::bottleView(int index)
 	}
 }
 
-/* Main navigation utility allowing the user to reach all the different views and options. */
 void Interface::menuView()
 {
 	if ( m_update_display ){
@@ -596,7 +573,6 @@ void Interface::menuView()
 
 	switch ( lcd_key ) {
 	case buttonRight: {
-		// Restore the default values for all options within the particular views.
 		restoreDefaults();
 
 		// Enter the selected view.
@@ -661,7 +637,6 @@ void Interface::menuView()
 	}
 }
 
-/* Allows the user to add a new bottle.*/
 void Interface::newBottleView()
 {
 	if ( m_update_display ) {
@@ -747,7 +722,6 @@ void Interface::newBottleView()
 	case buttonLeft: {
 		if ( m_bottle_option == 0 ) {
 			restoreDefaults();
-			// Abort and return to current bottle view.
 			m_current_view = viewHistory;
 		} else if ( m_bottle_option == bottleVolume ) {
 			m_bottle_option = bottleSpoons;
@@ -823,13 +797,11 @@ void Interface::newBottleView()
 
 }
 
-/* Displays the total consumption in volume and number of spoons within the last 24 hours.*/
+// Displays the total consumption in volume and number of spoons
+// within the last 24 hours.
 void Interface::consumptionView()
 {
 	
-	// Ensure this view is only drawn once (since it's not possible to
-	// change the amount of remaining volume once the user entered
-	// this view).
 	if ( m_update_display ){
 		m_update_display = false;
 
@@ -864,21 +836,20 @@ void Interface::consumptionView()
 
 	if ( lcd_key == buttonLeft ) {
 		restoreDefaults();
-		// Abort and return to current bottle view.
 		m_current_view = viewHistory;
 		m_displayed_bottle = m_crate.getCurrentBottleIdx();
 		m_update_display = true;
 	}
 }
 
-/* Displays all bottles stored in memory with latest first. Uses the currentBottleView() for a particular pair of bottles.*/
+// Displays all bottles stored in memory with latest first. Uses the
+// currentBottleView() for a particular pair of bottles.
 void Interface::historyView()
 {
 	bottleView(m_displayed_bottle);
 }
 
 #ifndef USE_RTC
-/* Allows the user to insert a reference time.*/
 void Interface::setTimeView()
 {
 	if ( m_update_display ) {
@@ -931,7 +902,6 @@ void Interface::setTimeView()
 	case buttonLeft: {
 		if ( m_set_time_state == 0 ) {
 			restoreDefaults();
-			// Abort and return to current bottle view.
 			m_current_view = viewHistory;
 		} else {
 			m_set_time_state = 0;
@@ -962,7 +932,6 @@ void Interface::setTimeView()
 }
 #endif
 
-/* Displays a particular view. */
 void Interface::view()
 {
 	if ( m_display_active ) {
@@ -1041,7 +1010,6 @@ void setup() {
 	lcd.begin(16, 2);
 	
 }
-
 
 void loop() {
 	app.view();
