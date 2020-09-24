@@ -43,9 +43,9 @@
 #define CONSUMPTION_TIME_SPAN 24
 
 // Default values to display in the newBottleView().
-#define DEFAULT_VOLUME 150
+#define DEFAULT_VOLUME 180
 #define DEFAULT_REMAINING 40
-#define DEFAULT_SPOONS 5
+#define DEFAULT_SPOONS 6
 
 // The (MAX_BOTTLES + 1)-th bottle will overwrite the first one.
 #define MAX_BOTTLES 50
@@ -426,7 +426,7 @@ void Interface::bottleView(int index)
 			lcd.setCursor( 0, 0 );
 			lcd.print( current_bottle.spoons );
 
-			if ( current_bottle.remaining > 100 ) {
+			if ( current_bottle.remaining >= 100 ) {
 				lcd.setCursor( 7, 0 );
 			} else if ( current_bottle.remaining >= 10 ) {
 				lcd.setCursor( 8, 0 );
