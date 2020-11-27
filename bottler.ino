@@ -65,7 +65,6 @@ LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
 // Intermediate variable for adjusting the time if no RTC chip is
 // present.
 DateTime custom_time = DateTime(2020, 9, 9, 0, 0, 0);
-unsigned long m_time_offset = 0;
 
 #endif
 
@@ -76,8 +75,7 @@ DateTime nowCustom() {
 #ifdef USE_RTC
 	return rtc.now();
 #else
-	return custom_time + TimeSpan(int32_t(millis()/1000)) -
-		TimeSpan(int32_t(m_time_offset/1000));
+	return custom_time + TimeSpan(int32_t(millis()/1000));
 #endif
 }
 	
@@ -871,24 +869,24 @@ void Interface::setTimeView()
 		lcd.clear();
 		
 		lcd.print("Time:");
-		if ( custom_time.hour() < 10 ) {
+		if ( nowCustom().hour() < 10 ) {
 			lcd.setCursor(6,0);
 			lcd.print("0");
 			lcd.setCursor(7,0);
 		} else {
 			lcd.setCursor(6,0);
 		}
-		lcd.print(custom_time.hour());
+		lcd.print(nowCustom().hour());
 		lcd.setCursor(8,0);
 		lcd.print(":");
-		if ( custom_time.minute() < 10 ) {
+		if ( nowCustom().minute() < 10 ) {
 			lcd.setCursor(9,0);
 			lcd.print("0");
 			lcd.setCursor(10,0);
 		} else {
 			lcd.setCursor(9,0);
 		}
-		lcd.print(custom_time.minute());
+		lcd.print(nowCustom().minute());
 
 		if ( m_set_time_state == 0 ) {
 			lcd.setCursor(6,1);
@@ -906,7 +904,6 @@ void Interface::setTimeView()
 		if ( m_set_time_state == 0 ) {
 			m_set_time_state = 1;
 		} else {
-			m_time_offset = millis();
 			restoreDefaults();
 			m_current_view = viewHistory;
 		}
